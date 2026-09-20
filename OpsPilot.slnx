@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="OpsPilot.API/OpsPilot.API.csproj" />
+  <Project Path="OpsPilot.Application/OpsPilot.Application.csproj" />
+  <Project Path="OpsPilot.Contracts/OpsPilot.Contracts.csproj" />
+  <Project Path="OpsPilot.Domain/OpsPilot.Domain.csproj" />
+  <Project Path="OpsPilot.Infrastructure/OpsPilot.Infrastructure.csproj" />
+</Solution>
