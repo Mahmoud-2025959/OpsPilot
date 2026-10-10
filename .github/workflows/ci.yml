@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start LocalDB
+        run: |
+          if (-not (sqllocaldb info MSSQLLocalDB 2>$null)) { sqllocaldb create MSSQLLocalDB }
+          sqllocaldb start MSSQLLocalDB
+
+      - name: Build solution
+        run: dotnet build OpsPilot.slnx -c Release
+
+      - name: Unit tests
+        run: dotnet test tests\OpsPilot.UnitTests\OpsPilot.UnitTests.csproj -c Release --no-build --logger "trx;LogFileName=unit.trx"
+
+      - name: Architecture tests
+        run: dotnet test OpsPilot.ArchitectureTests\OpsPilot.ArchitectureTests.csproj -c Release --no-build --logger "trx;LogFileName=architecture.trx"
+
+      - name: Integration tests
+        run: dotnet test OpsPilot.IntegrationTests\OpsPilot.IntegrationTests.csproj -c Release --no-build --logger "trx;LogFileName=integration.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/*.trx
+            **/TestResults/**
+          if-no-files-found: ignore
