@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="../tests/OpsPilot.UnitTests/OpsPilot.UnitTests.csproj" />
+  <Project Path="tests/OpsPilot.UnitTests/OpsPilot.UnitTests.csproj" />
   <Project Path="OpsPilot.API/OpsPilot.API.csproj" />
   <Project Path="OpsPilot.Application/OpsPilot.Application.csproj" />
   <Project Path="OpsPilot.ArchitectureTests/OpsPilot.ArchitectureTests.csproj" />
