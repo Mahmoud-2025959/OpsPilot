@@ -15,4 +15,17 @@
     <Folder Include="Features\Users\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageReference Include="MediatR" Version="14.2.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpsPilot.Contracts\OpsPilot.Contracts.csproj" />
+    <ProjectReference Include="..\OpsPilot.Domain\OpsPilot.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
