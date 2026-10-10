@@ -61,8 +61,13 @@ public sealed class TenantIsolationTests(LocalDbFixture fixture) : IClassFixture
 
         Assert.Equal(1, await first.Context.Incidents.CountAsync());
 
-        // Opting out is explicit at the call site, so it is greppable in review.
-        var all = await first.Context.Incidents.IgnoreQueryFilters().CountAsync();
+        // Opting out is explicit at the call site, so it is greppable in review. The fixture
+        // shares one database across the class, so the unfiltered count is scoped to the two
+        // tenants under test -- sibling tests' rows must not leak into it.
+        var all = await first.Context.Incidents
+            .IgnoreQueryFilters()
+            .Where(i => i.TenantId == first.TenantId || i.TenantId == second.TenantId)
+            .CountAsync();
         Assert.Equal(2, all);
     }
 
@@ -80,7 +85,14 @@ public sealed class TenantIsolationTests(LocalDbFixture fixture) : IClassFixture
         // A fresh context proves the row is filtered at query time, not just in this tracker.
         await using var verify = fixture.CreateContext(company.Tenants);
         Assert.Equal(0, await verify.Incidents.CountAsync());
-        Assert.Equal(1, await verify.Incidents.IgnoreQueryFilters().CountAsync());
+
+        // The fixture shares one database across the class, so the unfiltered lookup is
+        // scoped to this tenant: it proves the row still exists physically and is hidden by
+        // the query filter, without counting sibling tests' rows.
+        Assert.Equal(1, await verify.Incidents
+            .IgnoreQueryFilters()
+            .Where(i => i.TenantId == company.TenantId)
+            .CountAsync());
     }
 }
 

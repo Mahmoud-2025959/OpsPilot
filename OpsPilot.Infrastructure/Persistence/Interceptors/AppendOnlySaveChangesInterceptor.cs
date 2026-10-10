@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using OpsPilot.Domain.Common;
+using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Exceptions;
 
 namespace OpsPilot.Infrastructure.Persistence.Interceptors;
@@ -44,8 +45,18 @@ public sealed class AppendOnlySaveChangesInterceptor : SaveChangesInterceptor
 
     private static void Guard(DbContext context)
     {
+        // Deleting an incident removes its timeline with it (the schema declares
+        // DeleteBehavior.Cascade on the incident relationship), so those deletes are the
+        // intended end of an incident, never a rewrite of history. Every other append-only
+        // change keeps failing the whole unit of work.
+        var deletedIncidentIds = context.ChangeTracker.Entries<Incident>()
+            .Where(e => e.State == EntityState.Deleted)
+            .Select(e => e.Entity.Id)
+            .ToHashSet();
+
         var violations = context.ChangeTracker.Entries<IAppendOnly>()
             .Where(e => e.State is EntityState.Modified or EntityState.Deleted)
+            .Where(e => !IsCascadeFromDeletedIncident(e, deletedIncidentIds))
             .ToList();
 
         if (violations.Count == 0)
@@ -59,6 +70,30 @@ public sealed class AppendOnlySaveChangesInterceptor : SaveChangesInterceptor
 
         throw new AppendOnlyEntityModifiedException(
             $"Append-only records cannot be updated or deleted:{Environment.NewLine}{detail}");
+    }
+
+    /// <summary>
+    /// True when the entry is the dependent side of an incident that is itself being deleted
+    /// in the same unit of work. Only deletes qualify; updates are never exempted, and
+    /// entities without an incident, such as <see cref="AuditLog"/>, are never matched.
+    /// </summary>
+    private static bool IsCascadeFromDeletedIncident(
+        EntityEntry entry,
+        IReadOnlySet<Guid> deletedIncidentIds)
+    {
+        if (entry.State != EntityState.Deleted)
+        {
+            return false;
+        }
+
+        var incidentIdProperty = entry.Metadata.FindProperty(nameof(IncidentEvent.IncidentId));
+        if (incidentIdProperty is null)
+        {
+            return false;
+        }
+
+        return entry.Property(incidentIdProperty).CurrentValue is Guid incidentId
+            && deletedIncidentIds.Contains(incidentId);
     }
 
     private static string Describe(EntityEntry entry) => entry.State switch
