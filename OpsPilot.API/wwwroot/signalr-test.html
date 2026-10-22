@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpsPilot &mdash; live incident channel</title>
+
+    <!--
+        A development-only console for the live incident channel (plan, UC-15 and FR-20).
+
+        It is a real SignalR client, not a mock: whatever the API pushes to a browser reaches
+        this page. That is the point of it. The automated coverage in IncidentHubTests stands up
+        its own client and asserts on the wire; this page exists to watch the same thing happen
+        by hand while an endpoint is driven from somewhere else - Swagger in one tab, this page
+        in another.
+
+        It is served from wwwroot by Program.cs, and only in Development, so it travels with the
+        application during development and is absent from a deployed one.
+    -->
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --panel-2: #273449;
+            --border: #334155;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --ok: #4ade80;
+            --warn: #fbbf24;
+            --err: #f87171;
+            --incident: #38bdf8;
+            --notification: #c084fc;
+            --message: #4ade80;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        header h1 { font-size: 18px; margin: 0; }
+
+        header .sub { color: var(--muted); font-size: 12px; }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 16px;
+            padding: 16px 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .panel + .panel { margin-top: 16px; }
+
+        .panel h2 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin: 0 0 12px;
+        }
+
+        label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 7px 9px;
+            margin-bottom: 10px;
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        textarea { resize: vertical; min-height: 60px; }
+
+        button {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            background: var(--panel-2);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        button:hover:not(:disabled) { border-color: var(--accent); }
+
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        button.primary { background: var(--accent); color: #04121e; border-color: var(--accent); font-weight: 600; }
+
+        button.danger { border-color: var(--err); color: var(--err); }
+
+        .row { display: flex; gap: 8px; }
+        .row > * { flex: 1; }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 5px;
+            background: var(--panel-2);
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+
+        .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+        .dot.connected { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+        .dot.connecting { background: var(--warn); }
+        .dot.disconnected { background: var(--err); }
+
+        .hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+        .counters { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .counter {
+            flex: 1;
+            min-width: 90px;
+            background: var(--panel-2);
+            border-radius: 5px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .counter .n { font-size: 20px; font-weight: 700; }
+        .counter .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .feed { max-height: 60vh; overflow-y: auto; }
+
+        .event {
+            border-left: 3px solid var(--border);
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            background: var(--panel-2);
+            border-radius: 0 5px 5px 0;
+            animation: flash 0.6s ease-out;
+        }
+
+        @keyframes flash {
+            from { background: #3b4a63; }
+            to { background: var(--panel-2); }
+        }
+
+        .event.incidentUpdated { border-left-color: var(--incident); }
+        .event.notificationCreated { border-left-color: var(--notification); }
+        .event.messageReceived { border-left-color: var(--message); }
+        .event.system { border-left-color: var(--warn); }
+
+        .event .head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .event .name { font-weight: 700; letter-spacing: 0.03em; }
+        .event.incidentUpdated .name { color: var(--incident); }
+        .event.notificationCreated .name { color: var(--notification); }
+        .event.messageReceived .name { color: var(--message); }
+        .event.system .name { color: var(--warn); }
+
+        .event .time { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+        .event pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: Consolas, "Cascadia Mono", monospace;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .empty { color: var(--muted); font-style: italic; padding: 20px 0; text-align: center; }
+
+        .msg-error { color: var(--err); font-size: 12px; min-height: 16px; margin-bottom: 8px; }
+        .msg-ok { color: var(--ok); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Live incident channel</h1>
+        <span class="sub">/hubs/incidents &mdash; development console</span>
+    </header>
+
+    <div class="layout">
+        <div>
+            <div class="panel">
+                <h2>1 &middot; Credentials</h2>
+
+                <label for="token">Access token (JWT)</label>
+                <textarea id="token" placeholder="Paste an access token from POST /api/v1/auth/login"></textarea>
+
+                <details>
+                    <summary class="hint" style="cursor: pointer; margin-bottom: 10px;">
+                        Or sign in here to fetch one
+                    </summary>
+
+                    <label for="identifier">Email or username</label>
+                    <input id="identifier" placeholder="owner@acme.test" />
+
+                    <label for="password">Password</label>
+                    <input id="password" type="password" placeholder="Password" />
+
+                    <button id="login" type="button">Get token</button>
+                    <div id="login-error" class="msg-error"></div>
+                </details>
+
+                <div class="status">
+                    <span id="dot" class="dot"></span>
+                    <span id="status-text">Disconnected</span>
+                </div>
+
+                <div class="row">
+                    <button id="connect" class="primary" type="button">Connect</button>
+                    <button id="disconnect" class="danger" type="button" disabled>Disconnect</button>
+                </div>
+
+                <div id="whoami" class="hint" style="margin-top: 10px;"></div>
+            </div>
+
+            <div class="panel">
+                <h2>2 &middot; Send to the company</h2>
+                <p class="hint">
+                    The sender is taken from the token, and the message goes to everyone
+                    <em>else</em> watching the same company &mdash; the sending tab does not echo
+                    it back. Open this page in a second tab, connect both, and watch the text
+                    arrive in the other one.
+                </p>
+
+                <textarea id="message" placeholder="Investigating the payment outage now."></textarea>
+                <button id="send" class="primary" type="button" disabled>Send message</button>
+                <div id="send-error" class="msg-error"></div>
+            </div>
+
+            <div class="panel">
+                <h2>3 &middot; Drive the API elsewhere</h2>
+                <p class="hint">
+                    With a connection open, run an endpoint from Swagger in another tab &mdash;
+                    a status transition, or an assignment. The push it triggers lands in the feed
+                    to the right, which is what makes this a live check rather than a log file.
+                </p>
+            </div>
+        </div>
+
+        <div>
+            <div class="panel">
+                <h2>Received</h2>
+
+                <div class="counters">
+                    <div class="counter">
+                        <div class="n" id="count-incident">0</div>
+                        <div class="l">incidentUpdated</div>
+                    </div>
+                    <div class="counter">
+                        <div class="n" id="count-notification">0</div>
+                        <div class="l">notificationCreated</div>
+                    </div>
+                    <div class="counter">
+                        <div class="n" id="count-message">0</div>
+                        <div class="l">messageReceived</div>
+                    </div>
+                </div>
+
+                <div class="row" style="margin: 12px 0;">
+                    <button id="clear" type="button">Clear feed</button>
+                    <button id="autoscroll" type="button">Autoscroll: on</button>
+                </div>
+
+                <div id="feed" class="feed">
+                    <div class="empty" id="feed-empty">Nothing yet. Connect, then trigger something.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    <script>
+        (function () {
+            "use strict";
+
+            var el = function (id) { return document.getElementById(id); };
+
+            var feed = el("feed");
+            var feedEmpty = el("feed-empty");
+            var dot = el("dot");
+            var statusText = el("status-text");
+
+            var counters = {
+                incidentUpdated: { value: 0, node: el("count-incident") },
+                notificationCreated: { value: 0, node: el("count-notification") },
+                messageReceived: { value: 0, node: el("count-message") }
+            };
+
+            var connection = null;
+            var autoscroll = true;
+
+            // --- feed -------------------------------------------------------------
+
+            function stamp() {
+                return new Date().toLocaleTimeString(undefined, { hour12: false });
+            }
+
+            function addEvent(name, detail, className) {
+                if (feedEmpty) { feedEmpty.remove(); feedEmpty = null; }
+
+                var node = document.createElement("div");
+                node.className = "event " + (className || name);
+
+                var head = document.createElement("div");
+                head.className = "head";
+
+                var title = document.createElement("span");
+                title.className = "name";
+                title.textContent = name;
+
+                var time = document.createElement("span");
+                time.className = "time";
+                time.textContent = stamp();
+
+                head.appendChild(title);
+                head.appendChild(time);
+                node.appendChild(head);
+
+                var body = document.createElement("pre");
+                body.textContent = typeof detail === "string"
+                    ? detail
+                    : JSON.stringify(detail, null, 2);
+                node.appendChild(body);
+
+                feed.appendChild(node);
+
+                if (autoscroll) { feed.scrollTop = feed.scrollHeight; }
+            }
+
+            function bump(kind) {
+                var counter = counters[kind];
+                if (!counter) { return; }
+                counter.value += 1;
+                counter.node.textContent = counter.value;
+            }
+
+            function setStatus(state, text) {
+                dot.className = "dot " + state;
+                statusText.textContent = text;
+            }
+
+            // --- connection -------------------------------------------------------
+
+            function buildConnection(token) {
+                return new SignalR.HubConnectionBuilder()
+                    .withUrl("/hubs/incidents?access_token=" + encodeURIComponent(token))
+                    .withAutomaticReconnect()
+                    .configureLogging(SignalR.LogLevel.Information)
+                    .build();
+            }
+
+            function wire(connection) {
+                connection.on("incidentUpdated", function (payload) {
+                    bump("incidentUpdated");
+                    addEvent("incidentUpdated", payload);
+                });
+
+                connection.on("notificationCreated", function (payload) {
+                    bump("notificationCreated");
+                    addEvent("notificationCreated", payload);
+                });
+
+                connection.on("messageReceived", function (payload) {
+                    bump("messageReceived");
+                    addEvent("messageReceived", payload);
+                });
+
+                connection.onreconnecting(function () {
+                    setStatus("connecting", "Reconnecting\u2026");
+                    addEvent("connection", "Lost the connection; retrying.", "system");
+                });
+
+                connection.onreconnected(function () {
+                    setStatus("connected", "Connected");
+                    addEvent("connection", "Reconnected.", "system");
+                });
+
+                connection.onclose(function () {
+                    setStatus("disconnected", "Disconnected");
+                    toggleButtons(false);
+                });
+            }
+
+            function toggleButtons(connected) {
+                el("connect").disabled = connected;
+                el("disconnect").disabled = !connected;
+                el("send").disabled = !connected;
+            }
+
+            async function connect() {
+                var token = el("token").value.trim();
+
+                if (!token) {
+                    addEvent("connection", "An access token is required before connecting.", "system");
+                    return;
+                }
+
+                el("connect").disabled = true;
+                setStatus("connecting", "Connecting\u2026");
+
+                try {
+                    connection = buildConnection(token);
+                    wire(connection);
+                    await connection.start();
+
+                    setStatus("connected", "Connected");
+                    toggleButtons(true);
+                    addEvent("connection", "Connected to /hubs/incidents.", "system");
+
+                    showWhoAmI(token);
+                } catch (error) {
+                    setStatus("disconnected", "Disconnected");
+                    el("connect").disabled = false;
+                    addEvent("connection", "Could not connect: " + error, "system");
+                }
+            }
+
+            async function disconnect() {
+                if (!connection) { return; }
+
+                try {
+                    await connection.stop();
+                } catch (error) {
+                    addEvent("connection", "Error while closing: " + error, "system");
+                } finally {
+                    connection = null;
+                    setStatus("disconnected", "Disconnected");
+                    toggleButtons(false);
+                }
+            }
+
+            // Reads the claims out of the token for display only. The server never trusts this;
+            // it is here so the page can say which company and user the socket actually joined.
+            function showWhoAmI(token) {
+                try {
+                    var payload = JSON.parse(atob(token.split(".")[1]));
+                    var name = payload.unique_name || payload.name || payload.email || "(unknown)";
+                    var tenant = payload.tenant_id || "(none)";
+                    el("whoami").textContent = "Signed in as " + name + " \u00b7 company " + tenant;
+                } catch (error) {
+                    el("whoami").textContent = "";
+                }
+            }
+
+            async function send() {
+                var text = el("message").value.trim();
+                el("send-error").textContent = "";
+
+                if (!connection) { return; }
+
+                if (!text) {
+                    el("send-error").textContent = "A message cannot be empty.";
+                    return;
+                }
+
+                try {
+                    await connection.invoke("SendMessage", text);
+                    addEvent("sent", "You said: " + text, "system");
+                    el("message").value = "";
+                } catch (error) {
+                    el("send-error").textContent = String(error);
+                }
+            }
+
+            // --- login ------------------------------------------------------------
+
+            async function login() {
+                var identifier = el("identifier").value.trim();
+                var password = el("password").value;
+                var errorNode = el("login-error");
+
+                errorNode.textContent = "";
+                errorNode.className = "msg-error";
+
+                if (!identifier || !password) {
+                    errorNode.textContent = "Both fields are required.";
+                    return;
+                }
+
+                el("login").disabled = true;
+
+                try {
+                    var response = await fetch("/api/v1/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ identifier: identifier, password: password })
+                    });
+
+                    var payload = await response.json();
+
+                    if (!response.ok || !payload.succeeded) {
+                        var reason = (payload.errors && payload.errors.join(", ")) || response.statusText;
+                        errorNode.textContent = "Sign-in failed: " + reason;
+                        return;
+                    }
+
+                    el("token").value = payload.data.accessToken;
+                    errorNode.className = "msg-error msg-ok";
+                    errorNode.textContent = "Token acquired \u00b7 press Connect.";
+                } catch (error) {
+                    errorNode.textContent = "Sign-in failed: " + error;
+                } finally {
+                    el("login").disabled = false;
+                }
+            }
+
+            // --- wiring -----------------------------------------------------------
+
+            el("connect").addEventListener("click", connect);
+            el("disconnect").addEventListener("click", disconnect);
+            el("send").addEventListener("click", send);
+            el("login").addEventListener("click", login);
+
+            el("clear").addEventListener("click", function () {
+                feed.innerHTML = "";
+                var empty = document.createElement("div");
+                empty.className = "empty";
+                empty.id = "feed-empty";
+                empty.textContent = "Nothing yet. Connect, then trigger something.";
+                feed.appendChild(empty);
+                feedEmpty = empty;
+            });
+
+            el("autoscroll").addEventListener("click", function () {
+                autoscroll = !autoscroll;
+                el("autoscroll").textContent = "Autoscroll: " + (autoscroll ? "on" : "off");
+            });
+
+            el("message").addEventListener("keydown", function (event) {
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { send(); }
+            });
+        })();
+    </script>
+</body>
+</html>

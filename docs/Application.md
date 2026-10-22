@@ -10,11 +10,6 @@ Contains business logic / Use Cases and abstractions (interfaces); depends on ab
 
 ## المراجع الحالية / Current References
 
-- لا يوجد أي `ProjectReference` حالياً.
-- No `ProjectReference` currently.
-
-## المراجع المقترحة / Recommended References
-
 | المشروع المرجع | السبب / Reason |
 |---|---|
 | **OpsPilot.Domain** | استخدام الكيانات والاستثناءات في منطق الأعمال |
@@ -24,9 +19,13 @@ Contains business logic / Use Cases and abstractions (interfaces); depends on ab
 
 | الحزمة | الإصدار | ملاحظات |
 |---|---|---|
-| — | — | لا يوجد أي `PackageReference` حالياً. No packages currently.
+| `MediatR` | `14.2.0` | الـ CQRS (Commands/Queries والـ handlers) |
+| `FluentValidation` + `.DependencyInjectionExtensions` | `12.1.1` | التحقق من الـ Commands |
+| `Microsoft.Extensions.DependencyInjection` | `10.0.12` | تسجيل الـ handlers |
+| `Microsoft.Extensions.Logging.Abstractions` | `10.0.12` | واجهات التسجيل |
+| `System.Security.Cryptography.Pkcs` | `9.0.21` | تبعية |
 
-**أمثلة على حزم مقترحة مستقبلًا / Suggested future packages:** `MediatR` (لـ CQRS), `FluentValidation` (لتحقق الـ Commands), `Microsoft.Extensions.Logging.Abstractions`.
+**ملاحظة:** الطبقة بتعتمد على الـ Abstractions (الواجهات) بس، والتنفيذات الحقيقية بتيجي من `OpsPilot.Infrastructure` عن طريق حقن التبعيات.
 
 ## المجلدات / Folders
 
@@ -38,6 +37,8 @@ Contains business logic / Use Cases and abstractions (interfaces); depends on ab
 | `Features/Incidents/` | أوامر واستعلامات (Commands/Queries) حوادث التشغيل (Incidents) |
 | `Features/Services/Teams/` | منطق الفِرق (Teams) جوه خدمات الدومين |
 | `Features/Users/` | منطق الـ Users (إنشاء، تعديل، بحث...) |
+| `Features/Roles/` | منطق الأدوار والصلاحيات (Roles/Permissions) — إنشاء دور مخصص، تعديل صلاحياته، وقاعدة "من ما تملكش ما تديه"، وقاعدة إن دور الـ Owner ميتوزّعش غير من Owner |
+| `Features/Permissions/` | قراءة كتالوج الصلاحيات العام (Permissions catalogue) |
 
 ## ملاحظات إضافية / Additional Notes
 

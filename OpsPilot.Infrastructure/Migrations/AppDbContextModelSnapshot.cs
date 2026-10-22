@@ -211,6 +211,10 @@ namespace OpsPilot.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("KeyCiphertext")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
                     b.Property<string>("KeyHash")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -586,6 +590,9 @@ namespace OpsPilot.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -610,6 +617,10 @@ namespace OpsPilot.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<DateTimeOffset?>("ReadAt")
                         .HasColumnType("datetimeoffset");
@@ -1017,12 +1028,11 @@ namespace OpsPilot.Infrastructure.Migrations
                     b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("NormalizedName")
-                        .IsUnique()
                         .HasDatabaseName("RoleNameIndex");
 
                     b.HasIndex("TenantId", "IsSystem");
 
-                    b.HasIndex("TenantId", "Name")
+                    b.HasIndex("TenantId", "NormalizedName")
                         .IsUnique();
 
                     b.ToTable("Roles", (string)null);

@@ -15,6 +15,11 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         builder.Property(k => k.Name).IsRequired().HasMaxLength(200);
         builder.Property(k => k.KeyPrefix).IsRequired().HasMaxLength(16);
         builder.Property(k => k.KeyHash).IsRequired().HasMaxLength(256);
+
+        // The encrypted copy of the secret, so a key can be read back after it was issued.
+        // Null for rows that predate the column, and for a secret that could not be encrypted.
+        builder.Property(k => k.KeyCiphertext).HasMaxLength(512);
+
         builder.Property(k => k.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(k => k.ExpiresAt).IsRequired();
         builder.Property(k => k.LastUsedAt);

@@ -41,7 +41,10 @@ public sealed class TokenService : ITokenService
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.Email ?? string.Empty)
+            new(ClaimTypes.Name, user.Email ?? string.Empty),
+            // The tenant travels with the token so the API can resolve it on every request
+            // without a database round trip (ERD §3, "Identity و Tenancy").
+            new(AuthClaimTypes.TenantId, user.TenantId.ToString())
         };
 
         foreach (var role in user.Roles)
@@ -50,9 +53,9 @@ public sealed class TokenService : ITokenService
 
             foreach (var permission in role.Permissions)
             {
-                if (!claims.Any(c => c.Type == "permission" && c.Value == permission.Name))
+                if (!claims.Any(c => c.Type == AuthClaimTypes.Permission && c.Value == permission.Name))
                 {
-                    claims.Add(new Claim("permission", permission.Name));
+                    claims.Add(new Claim(AuthClaimTypes.Permission, permission.Name));
                 }
             }
         }
@@ -119,17 +122,27 @@ public sealed class TokenService : ITokenService
             throw new UnauthorizedException(ExceptionMessages.RefreshTokenReuseDetected);
         }
 
-        var user = await _userRepository.GetByIdAsync(storedToken.UserId, cancellationToken)
+        var user = await _userRepository.FindByIdAcrossTenantsAsync(storedToken.UserId, cancellationToken)
             ?? throw new UnauthorizedException(ExceptionMessages.InvalidOrExpiredRefreshToken);
 
         var accessToken = await GenerateAccessTokenAsync(user, cancellationToken);
         var newRefreshToken = await GenerateRefreshTokenAsync(user, cancellationToken);
 
-        // Link the consumed token to its replacement, so replaying this token later can be
-        // traced along the whole chain rather than just flagged at one row (ERD §3).
-        storedToken.MarkUsed(newRefreshToken.Entity.Id);
-        await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
-        await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
+        // Claim the presented token atomically and link it to its replacement, so replaying it
+        // later can be traced along the whole chain rather than just flagged at one row
+        // (ERD §3). The claim is a single conditional write, so if two refreshes race with the
+        // same token only one wins; the loser sees the token already consumed and is treated as
+        // a replay, which revokes the whole chain.
+        if (!await _refreshTokenRepository.TryConsumeAsync(
+                storedToken.Id,
+                newRefreshToken.Entity.Id,
+                utcNow,
+                cancellationToken))
+        {
+            await _refreshTokenRepository.RevokeAllForUserAsync(storedToken.UserId, cancellationToken);
+            await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
+            throw new UnauthorizedException(ExceptionMessages.RefreshTokenReuseDetected);
+        }
 
         var options = _jwtOptions.CurrentValue;
 
@@ -146,7 +159,7 @@ public sealed class TokenService : ITokenService
     {
         var tokenHash = HashToken(refreshToken);
         var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash, cancellationToken)
-            ?? throw new EntityNotFoundException("RefreshToken", Guid.Empty);
+            ?? throw new UnauthorizedException(ExceptionMessages.RefreshTokenNotFound);
 
         if (storedToken.UserId != userId)
         {
