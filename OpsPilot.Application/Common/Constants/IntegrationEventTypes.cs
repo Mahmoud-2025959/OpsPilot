@@ -14,4 +14,10 @@ public static class IntegrationEventTypes
 
     /// <summary>A new entry on an existing incident's timeline.</summary>
     public const string IncidentEventAdded = "IncidentEventAdded";
+
+    /// <summary>
+    /// An operational event reported by another system, consumed from the broker. Unlike the two
+    /// above it travels <em>into</em> the system rather than out of it.
+    /// </summary>
+    public const string EventIngested = "EventIngested";
 }

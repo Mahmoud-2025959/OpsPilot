@@ -14,6 +14,10 @@ public sealed class WebhookEndpointConfiguration : IEntityTypeConfiguration<Webh
         builder.Property(e => e.TenantId).IsRequired();
         builder.Property(e => e.Url).IsRequired().HasMaxLength(500);
         builder.Property(e => e.SecretHash).IsRequired().HasMaxLength(256);
+
+        // The signing secret, encrypted. Null for endpoints registered before the secret began
+        // being stored: those cannot sign their deliveries until they are rotated.
+        builder.Property(e => e.SecretCiphertext).HasMaxLength(512);
         builder.Property(e => e.IsActive).IsRequired();
 
         builder.HasIndex(e => e.TenantId);

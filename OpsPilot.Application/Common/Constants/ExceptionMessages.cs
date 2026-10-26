@@ -71,6 +71,20 @@ public static class ExceptionMessages
 
     public const string ApiKeyNotFound = "The API key was not found.";
 
+    public const string PostmortemAlreadyExists =
+        "This incident already has a postmortem. Only one can be written per incident.";
+
+    public static string PostmortemNotFound(Guid id) => $"Postmortem with id '{id}' was not found.";
+
+    public const string PostmortemRequiresCompletedIncident =
+        "A postmortem can only be published once its incident is resolved or closed.";
+
+    public const string CompanyWithoutOwner =
+        "This company has no active Owner. Give the Owner role to someone before closing it.";
+
+    public const string CompanyDormant =
+        "This company is closed. Ask its Owner to bring it back into use.";
+
     public const string ApiKeyAlreadyExists = "An API key with this name already exists.";
 
     public const string ApiKeyPrefixBusy =
@@ -79,6 +93,18 @@ public static class ExceptionMessages
     public const string ApiKeyUnusable = "The API key is invalid, revoked or expired.";
 
     public const string ApiKeyNotAssociated = "This API key is not associated with an account.";
+
+    public const string WebhookAlreadyExists =
+        "A webhook endpoint with this URL is already registered in this company.";
+
+    public static string WebhookNotFound(Guid id) => $"Webhook endpoint with id '{id}' was not found.";
+
+    /// <summary>
+    /// A message that arrived over the broker could not be read as an integration event. It is
+    /// refused rather than retried: a producer that got the format wrong will get it wrong again.
+    /// </summary>
+    public const string IntegrationEventMalformed =
+        "The integration event could not be read. Check the envelope and the payload.";
 
     /// <summary>
     /// The event names a service the company has not registered in that environment. The plan

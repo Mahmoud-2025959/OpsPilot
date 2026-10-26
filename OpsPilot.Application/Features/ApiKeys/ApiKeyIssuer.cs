@@ -27,9 +27,9 @@ public sealed class ApiKeyIssuer
     private const int MaxPrefixAttempts = 5;
 
     private readonly IApiKeyRepository _repository;
-    private readonly IApiKeySecretProtector _protector;
+    private readonly ISecretProtector _protector;
 
-    public ApiKeyIssuer(IApiKeyRepository repository, IApiKeySecretProtector protector)
+    public ApiKeyIssuer(IApiKeyRepository repository, ISecretProtector protector)
     {
         _repository = repository;
         _protector = protector;

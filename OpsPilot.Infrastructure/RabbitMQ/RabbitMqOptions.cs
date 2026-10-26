@@ -70,4 +70,24 @@ public sealed class RabbitMqOptions
     /// the write but never confirms must not hold the drain open indefinitely.
     /// </summary>
     public TimeSpan PublishTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// When true, the integration consumer subscribes to the integration queue and applies the
+    /// messages it receives. Off by default, for the same reason the publisher is: a fresh clone
+    /// starts without requiring a broker to be running.
+    /// </summary>
+    public bool ConsumerEnabled { get; set; }
+
+    /// <summary>
+    /// The queue the integration consumer reads from. Bound to the exchange with a wildcard, so
+    /// it sees every event type rather than one family of them.
+    /// </summary>
+    public string ConsumerQueueName { get; set; } = "opspilot.integration";
+
+    /// <summary>
+    /// How many messages the broker may have in flight for this consumer at once. Low on purpose:
+    /// each message is applied inside a transaction, and a wider window would let one slow
+    /// company hold the whole queue.
+    /// </summary>
+    public ushort ConsumerPrefetch { get; set; } = 10;
 }

@@ -8,6 +8,7 @@ using OpsPilot.Application.Features.Auth.Commands.RegisterTenant;
 using OpsPilot.Contracts.Auth;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Exceptions;
+using OpsPilot.Domain.Identity;
 
 namespace OpsPilot.Infrastructure.Persistence;
 
@@ -15,6 +16,7 @@ public sealed class AuthRepository : IAuthRepository
 {
     private readonly IUserRepository _userRepository;
     private readonly ITenantProvisioner _tenantProvisioner;
+    private readonly ITenantRepository _tenants;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly IOptionsMonitor<JwtOptions> _jwtOptions;
@@ -24,6 +26,7 @@ public sealed class AuthRepository : IAuthRepository
     public AuthRepository(
         IUserRepository userRepository,
         ITenantProvisioner tenantProvisioner,
+        ITenantRepository tenants,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         IOptionsMonitor<JwtOptions> jwtOptions,
@@ -32,6 +35,7 @@ public sealed class AuthRepository : IAuthRepository
     {
         _userRepository = userRepository;
         _tenantProvisioner = tenantProvisioner;
+        _tenants = tenants;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _jwtOptions = jwtOptions;
@@ -63,15 +67,27 @@ public sealed class AuthRepository : IAuthRepository
             throw new UnauthorizedException(ExceptionMessages.InvalidEmailOrPassword);
         }
 
+        // A closed company accepts no new sign-ins. Its Owner is the exception: they are the
+        // one who can bring it back, and locking them out would make the state permanent.
+        // Checked after the password so a wrong password still says "wrong password" and
+        // never reveals whether the company is closed.
+        var tenant = await _tenants.GetByIdAsync(user.TenantId, cancellationToken);
+
+        if (tenant is { IsActive: false }
+            && !user.Roles.Any(r =>
+                string.Equals(r.Name, SystemRoleNames.Owner, StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogWarning("Login blocked for user {UserId}: the company is closed", user.Id);
+            throw new ForbiddenException(ExceptionMessages.CompanyDormant);
+        }
+
         user.RecordLogin(_timeProvider.GetUtcNow());
         await _userRepository.UpdateAsync(user, cancellationToken);
 
         _logger.LogInformation("User {UserId} logged in successfully", user.Id);
 
         return await BuildAuthResponseAsync(user, cancellationToken);
-    }
-
-    public async Task<AuthResponseDto> RegisterTenantAsync(
+    }    public async Task<AuthResponseDto> RegisterTenantAsync(
         RegisterTenantCommand request,
         CancellationToken cancellationToken = default)
     {

@@ -28,4 +28,31 @@ public static class AuditActions
 
     /// <summary>A role's permission set was replaced.</summary>
     public const string RolePermissionsChanged = "Role.PermissionsChanged";
+
+    /// <summary>An incident's retrospective was opened.</summary>
+    public const string PostmortemCreated = "Postmortem.Created";
+
+    /// <summary>The written body of a postmortem changed.</summary>
+    public const string PostmortemUpdated = "Postmortem.Updated";
+
+    /// <summary>A postmortem moved between Draft, InReview and Published.</summary>
+    public const string PostmortemStatusChanged = "Postmortem.StatusChanged";
+
+    /// <summary>The company was given a new name.</summary>
+    public const string TenantRenamed = "Tenant.Renamed";
+
+    /// <summary>The company was activated or deactivated.</summary>
+    public const string TenantStatusChanged = "Tenant.StatusChanged";
+
+    /// <summary>A webhook endpoint was registered.</summary>
+    public const string WebhookCreated = "Webhook.Created";
+
+    /// <summary>A webhook endpoint's destination or state changed.</summary>
+    public const string WebhookUpdated = "Webhook.Updated";
+
+    /// <summary>A webhook endpoint was retired.</summary>
+    public const string WebhookDeleted = "Webhook.Deleted";
+
+    /// <summary>A webhook endpoint's signing secret was replaced.</summary>
+    public const string WebhookSecretRotated = "Webhook.SecretRotated";
 }

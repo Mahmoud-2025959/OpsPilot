@@ -57,6 +57,16 @@ public static class ValidationMessages
     public const string NotificationPreferenceDuplicate =
         "Each severity and channel pair may be supplied at most once.";
 
+    // Postmortems.
+    public const string PostmortemTitleRequired = "A postmortem title is required.";
+    public const string PostmortemSummaryRequired = "A postmortem summary is required.";
+
+    // Webhooks.
+    public const string WebhookUrlRequired = "A webhook URL is required.";
+    public const string WebhookIdRequired = "A webhook endpoint id is required.";
+    public const string WebhookUrlInvalid =
+        "The webhook URL must be absolute, and must use HTTPS unless it points at the local machine.";
+
     // SLA policies.
     public const string SlaPoliciesRequired = "At least one SLA policy is required.";
     public const string SlaSeverityInvalid =

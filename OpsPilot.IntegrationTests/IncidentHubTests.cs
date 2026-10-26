@@ -161,6 +161,7 @@ public sealed class IncidentHubTests(LocalDbFixture db) : IClassFixture<LocalDbF
         var heard = Assert.Single(engineerHeard);
         Assert.Equal("Investigating the payment outage now.", heard.Text);
         Assert.Equal(ownerAuth.Id, heard.SenderId);
+        Assert.Equal(ownerAuth.DisplayName, heard.SenderName);
 
         // The sender's own client already shows what it wrote, so echoing it back would make
         // every conversation render each line twice.
@@ -173,6 +174,7 @@ public sealed class IncidentHubTests(LocalDbFixture db) : IClassFixture<LocalDbF
         var reply = Assert.Single(ownerHeard);
         Assert.Equal("Copy that, looking at the logs.", reply.Text);
         Assert.Equal(engineerId, reply.SenderId);
+        Assert.Equal("Engineer hub-chat", reply.SenderName);
 
         // ...and the reply is not echoed either, which is what makes this a conversation
         // between two watchers rather than two copies of the same stream.

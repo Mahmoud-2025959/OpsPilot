@@ -94,7 +94,35 @@ The entry point — Controllers receive HTTP requests, Middleware handles errors
 
 | Endpoint | الوصف / Purpose | الصلاحية / Policy |
 |---|---|---|
-| `GET /api/v1/users/{id}/permissions` | الصلاحيات الفعلية لمستخدم + الأدوار اللي جابتها (بدون `users.manage` مش هتقدر) | `users.manage` |
+| `GET /api/v1/users/{id}/permissions` | الصلاحيات الفعلية لمستخدم + الأدوار اللي جابتها | `users.manage` |
+
+## المصادقة: أي credential ومتى / Which credential when
+
+كل طلب HTTP بيحمل **credential واحد بس**. إرسال الهيدرين مع بعض مش "أقوى" — بالعكس: وجود `X-API-Key` بيخلّي الـ policy scheme يختار scheme المفتاح ويهمل الـ Bearer تماماً، فالنتيجة `403` على أي مسار مش ingestion حتى لو الـ access token صالح.
+
+| الحالة | الـ credential | المسارات |
+|---|---|---|
+| إنسان / واجهة / إدارة | `Authorization: Bearer <access token>` | كل `api/v1/*` ما عدا `/events`: الحوادث، التحليلات، المستخدمون، الأدوار، `api-keys`، التدقيق، Webhooks، Postmortems، Services، SLA، Tenants |
+| Realtime | Bearer (و في WebSocket: `access_token` في الـ query) | `/hubs/incidents` |
+| آلة تُرسل أحداثاً | `X-API-Key: <key>` | `POST /api/v1/events` فقط |
+
+القواعد المطبَّقة:
+
+- وجود `X-API-Key` في أي طلب بيلغي النظر في الـ `Authorization` header — ما تحطّش الاثنين في نفس الطلب.
+- `POST /api/v1/events` بـ Bearer → `401`: الـ endpoint بيطلب claim `apikey_id`، والـ JWT ما بيعملوش. افتراضياً مفيش دور بياخد `events.ingest`، لكن قاعدة بيانات قديمة ممكن تكون لسه شايلة الصلاحية لأن مزامنة الكتالوج بتضيف وما بتسحبش — وحتى لو الـ policy عدّت، الـ handler بيرفض بـ `401`.
+- أي مسار غير `/events` بمفتاح صالح → `403`: هوية المفتاح بتحمل `events.ingest` بس، والمسارات البشرية بتطلب `incidents.read` وأخواتها.
+- التمييز بين الرفضين: **`401`** = الـ credential غير صالح/منتهي/ملغى (أو مفيش credential). **`403`** = المصادقة نجحت والصلاحية رفضت.
+- إنشاء المفتاح يحتاج JWT بصلاحية `apiKeys.manage`، والمفتاح بيتسجّل باسم المستخدم اللي أصدره (`CreatedBy`)، وده اللي بيظهر كـ reporter للحوادث اللي المفتاح بيفتحها. أصدره من حساب مخصّص للـ integration.
+- الـ rate limit (`429`) على الـ ingestion بس، ولكل مفتاح bucket منفصل حسب `apikey_id`.
+- `rotate` بيوقف المفتاح القديم فوراً → حدّث الـ agent في نفس اللحظة.
+
+تسلسل العمل الطبيعي:
+
+```
+إنسان (Admin)     --JWT-->         POST /api/v1/api-keys   (مرة واحدة)
+التطبيق/الـ agent --X-API-Key-->   POST /api/v1/events     (فقط)
+إنسان (UI)        --JWT-->         /api/v1/incidents، /hubs/incidents، ...
+```
 
 ## ملاحظات إضافية / Additional Notes
 
@@ -104,4 +132,7 @@ The entry point — Controllers receive HTTP requests, Middleware handles errors
 - نقاط الفحص (health): `/health`, `/health/live`, `/health/ready`
 - مكتبة الـ Hangfire (`/jobs`) تظهر فقط لما `Hangfire:Enabled` يكون مفعّلًا.
 - **أداة الـ SignalR** (`/signalr-test`) تظهر في **Development بس** — بتوصّل بالـ Hub
-  بنفس التوكن وتعرض الرسايل الحية لعرض الاتجاهين (API→Hub و Hub→Hub).
+  بنفس التوكن وتعرض الرسايل الحية لعرض الاتجاهين (API→Hub و Hub→Hub). رسايل المحادثة
+  بتتعرض كـ group chat بأسماء المرسلين (`messageReceived` payload:
+  `{ senderId, senderName, text, sentAt }`)، والرسالة مش بترجع لصاحبها — عميله بيعرضها
+  محلياً على اليمين.

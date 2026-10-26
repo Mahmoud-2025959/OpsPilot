@@ -28,6 +28,9 @@ public static class RolePermissionDefaults
         PermissionNames.IncidentsComment,
         PermissionNames.IncidentsResolve,
         PermissionNames.IncidentsClose,
+        PermissionNames.PostmortemsRead,
+        PermissionNames.PostmortemsWrite,
+        PermissionNames.PostmortemsPublish,
         PermissionNames.ServicesManage,
         PermissionNames.TeamsManage,
         PermissionNames.UsersManage,
@@ -35,6 +38,8 @@ public static class RolePermissionDefaults
         PermissionNames.SlaManage,
         PermissionNames.ApiKeysManage,
         PermissionNames.NotificationsConfigure,
+        PermissionNames.WebhooksRead,
+        PermissionNames.WebhooksManage,
         PermissionNames.AuditRead,
         PermissionNames.AnalyticsRead
     ];
@@ -48,8 +53,12 @@ public static class RolePermissionDefaults
         PermissionNames.IncidentsComment,
         PermissionNames.IncidentsResolve,
         PermissionNames.IncidentsClose,
+        PermissionNames.PostmortemsRead,
+        PermissionNames.PostmortemsWrite,
+        PermissionNames.PostmortemsPublish,
         PermissionNames.TeamsManage,
         PermissionNames.NotificationsConfigure,
+        PermissionNames.WebhooksRead,
         PermissionNames.AnalyticsRead
     ];
 
@@ -61,13 +70,18 @@ public static class RolePermissionDefaults
         PermissionNames.IncidentsAssign,
         PermissionNames.IncidentsComment,
         PermissionNames.IncidentsResolve,
-        PermissionNames.AnalyticsRead
+        PermissionNames.PostmortemsRead,
+        PermissionNames.PostmortemsWrite,
+        PermissionNames.AnalyticsRead,
+        PermissionNames.WebhooksRead
     ];
 
     private static readonly IReadOnlyList<string> ViewerPermissions =
     [
         PermissionNames.IncidentsRead,
-        PermissionNames.AnalyticsRead
+        PermissionNames.PostmortemsRead,
+        PermissionNames.AnalyticsRead,
+        PermissionNames.WebhooksRead
     ];
 
     /// <summary>The permissions granted to a system role, by role name.</summary>

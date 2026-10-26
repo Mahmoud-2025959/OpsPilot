@@ -150,6 +150,20 @@ public sealed class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => !u.IsDeleted && u.Id == id, cancellationToken);
     }
 
+    public Task<string?> GetDisplayNameAcrossTenantsAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        // Only the name column: this runs once per live message, and joining roles and
+        // permissions to render a label would be wasted work. Deleted accounts read as absent,
+        // so the caller falls back rather than labelling a message with a ghost.
+        return _context.Users
+            .IgnoreQueryFilters()
+            .Where(u => !u.IsDeleted && u.Id == id)
+            .Select(u => u.DisplayName)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Role>> GetRolesByNamesAsync(
         Guid tenantId,
         IReadOnlyCollection<string> names,

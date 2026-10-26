@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpsPilot.Application.Abstractions;
+using OpsPilot.Application.Features.Webhooks;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Enums;
 
@@ -129,7 +130,46 @@ public sealed class IncidentRepository : IIncidentRepository
         _context.IncidentEvents.Add(incidentEvent);
         _context.OutboxMessages.Add(integrationMessage);
 
+        // The webhook calls are staged in the same save as the announcement they carry: a
+        // webhook can never be told about an event the system did not store, and a stored
+        // event is never missing from the list of webhooks that should have heard about it.
+        await StageWebhookDeliveriesAsync(incidentEvent, integrationMessage, cancellationToken);
+
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Queues one call per registered endpoint for an event that is being announced.
+    /// </summary>
+    /// <remarks>
+    /// The outbox is the single source of what is worth announcing, and a webhook is another
+    /// way to announce it — so a webhook carries exactly what the broker carries, wrapped in
+    /// an envelope that says which company and which event it is about.
+    /// </remarks>
+    private async Task StageWebhookDeliveriesAsync(
+        IncidentEvent incidentEvent,
+        OutboxMessage integrationMessage,
+        CancellationToken cancellationToken)
+    {
+        var endpoints = await _context.WebhookEndpoints
+            .Where(e => e.IsActive && e.TenantId == incidentEvent.TenantId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var endpoint in endpoints)
+        {
+            var payload = WebhookPayloads.Envelope(
+                integrationMessage.Type,
+                endpoint.TenantId,
+                incidentEvent.OccurredAt,
+                integrationMessage.Payload);
+
+            _context.WebhookDeliveries.Add(
+                WebhookDelivery.Create(
+                    endpoint.TenantId,
+                    endpoint.Id,
+                    integrationMessage.Type,
+                    payload));
+        }
     }
 
     public async Task<IReadOnlyList<IncidentEvent>> GetEventsAsync(Guid incidentId, CancellationToken cancellationToken = default)

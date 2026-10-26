@@ -16,6 +16,10 @@ public static class PermissionNames
     public const string IncidentsResolve = "incidents.resolve";
     public const string IncidentsClose = "incidents.close";
 
+    public const string PostmortemsRead = "postmortems.read";
+    public const string PostmortemsWrite = "postmortems.write";
+    public const string PostmortemsPublish = "postmortems.publish";
+
     public const string ServicesManage = "services.manage";
     public const string TeamsManage = "teams.manage";
     public const string UsersManage = "users.manage";
@@ -23,6 +27,8 @@ public static class PermissionNames
     public const string SlaManage = "sla.manage";
     public const string ApiKeysManage = "apikeys.manage";
     public const string NotificationsConfigure = "notifications.configure";
+    public const string WebhooksRead = "webhooks.read";
+    public const string WebhooksManage = "webhooks.manage";
     public const string AuditRead = "audit.read";
     public const string AnalyticsRead = "analytics.read";
     public const string TenantSettings = "tenant.settings";

@@ -41,6 +41,18 @@ public interface IUserRepository
     Task<User?> FindByIdAcrossTenantsAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The display name of an account, or null when the row is missing or deleted.
+    /// </summary>
+    /// <remarks>
+    /// Split out from <see cref="FindByIdAcrossTenantsAsync"/> because the one caller that only
+    /// needs a name to render — the live conversation channel — runs on every message and has no
+    /// use for a user's roles and permissions. The lookup crosses tenants on purpose, like its
+    /// neighbours: hub invocations carry the tenant claim, not an ambient tenant, so a filtered
+    /// read would match nothing.
+    /// </remarks>
+    Task<string?> GetDisplayNameAcrossTenantsAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// True when the account exists, is not deleted, and is still active.
     /// </summary>
     /// <remarks>

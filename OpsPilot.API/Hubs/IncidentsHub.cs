@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using OpsPilot.Application.Abstractions;
 using OpsPilot.Contracts.Auth;
 using OpsPilot.Contracts.Realtime;
 
@@ -26,6 +27,10 @@ namespace OpsPilot.API.Hubs;
 [Authorize]
 public sealed class IncidentsHub : Hub
 {
+    private readonly IUserRepository _users;
+
+    public IncidentsHub(IUserRepository users) => _users = users;
+
     public override async Task OnConnectedAsync()
     {
         var user = Context.User;
@@ -62,6 +67,11 @@ public sealed class IncidentsHub : Hub
     /// could name itself could speak as anybody.
     /// </para>
     /// <para>
+    /// The name that goes out is the account's display name, resolved here rather than on the
+    /// receiving end: a group chat has to label each message, and pushing the id alone would make
+    /// every client look it up — or, worse, render a bare GUID when it did not bother.
+    /// </para>
+    /// <para>
     /// The message is addressed to the company group rather than to a connection, so it cannot
     /// leave the company even if a client asks it to. It goes to <em>others</em> in that group,
     /// because the sender's own client already knows what it just wrote.
@@ -91,11 +101,17 @@ public sealed class IncidentsHub : Hub
             throw new HubException("This connection is not attached to a company.");
         }
 
+        // A soft-deleted or vanished account would leave a name-less message; the token's name
+        // claim is the fallback, and it is present on every connection the pipeline admitted.
+        var senderName = await _users.GetDisplayNameAcrossTenantsAsync(senderId, Context.ConnectionAborted)
+            ?? Context.User?.FindFirstValue(ClaimTypes.Name)
+            ?? senderId.ToString();
+
         await Clients
             .OthersInGroup(HubProtocol.TenantGroup(tenantId))
             .SendAsync(
                 HubProtocol.MessageReceived,
-                new ConversationMessageDto(senderId, message, DateTimeOffset.UtcNow),
+                new ConversationMessageDto(senderId, senderName, message, DateTimeOffset.UtcNow),
                 Context.ConnectionAborted);
     }
 

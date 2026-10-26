@@ -17,11 +17,13 @@ using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Identity;
 using OpsPilot.Infrastructure.BackgroundJobs;
 using OpsPilot.Infrastructure.Identity;
+using OpsPilot.Infrastructure.Integration;
 using OpsPilot.Infrastructure.Persistence;
 using OpsPilot.Infrastructure.Persistence.Interceptors;
 using OpsPilot.Infrastructure.RabbitMQ;
 using OpsPilot.Infrastructure.Security;
 using OpsPilot.Infrastructure.Services;
+using OpsPilot.Infrastructure.Webhooks;
 
 namespace OpsPilot.Infrastructure;
 
@@ -70,6 +72,7 @@ public static class DependencyInjection
         .AddDefaultTokenProviders();
 
         services.AddScoped<IIncidentRepository, IncidentRepository>();
+        services.AddScoped<IPostmortemRepository, PostmortemRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
@@ -86,7 +89,11 @@ public static class DependencyInjection
         services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
         services.AddScoped<ISlaViolationRepository, SlaViolationRepository>();
         services.AddScoped<ITenantDirectory, TenantDirectory>();
+        services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IOutboxRepository, OutboxRepository>();
+        services.AddScoped<IInboxRepository, InboxRepository>();
+        services.AddScoped<IWebhookRepository, WebhookRepository>();
+        services.AddScoped<IntegrationEventProcessor>();
 
         // The outbox publishing step is a broker when one is configured, and a logging stand-in
         // when it is not (plan, UC-06 step 7). That is the one line the abstraction was built
@@ -97,9 +104,15 @@ public static class DependencyInjection
 
         services.Configure<RabbitMqOptions>(rabbitSection);
 
-        if (rabbitSection.Get<RabbitMqOptions>()?.Enabled ?? false)
+        var rabbitOptions = rabbitSection.Get<RabbitMqOptions>() ?? new RabbitMqOptions();
+
+        if (rabbitOptions.Enabled || rabbitOptions.ConsumerEnabled)
         {
             services.AddSingleton<RabbitMqConnection>();
+        }
+
+        if (rabbitOptions.Enabled)
+        {
             services.AddScoped<IOutboxPublisher, RabbitMqOutboxPublisher>();
         }
         else
@@ -107,8 +120,33 @@ public static class DependencyInjection
             services.AddScoped<IOutboxPublisher, LoggingOutboxPublisher>();
         }
 
+        // The other end of the outbox. Off by default, like the publisher: a fresh clone starts
+        // without requiring a broker, and a company that never publishes an event never needs
+        // one.
+        if (rabbitOptions.ConsumerEnabled)
+        {
+            services.AddHostedService<RabbitMqIntegrationConsumer>();
+        }
+
         services.AddScoped<IEmailSender, MailKitEmailSender>();
         services.AddScoped<ITenantProvisioner, TenantProvisioner>();
+
+        // The catalogue is seeded when a company is created, which leaves every company that
+        // already exists without a permission a later build introduced. This catches them up
+        // once at startup. Registered as a singleton as well as a hosted service so a test can
+        // resolve it and drive a pass itself.
+        var permissionSyncSection = configuration.GetSection(PermissionSyncOptions.SectionName);
+        var permissionSyncEnabled = permissionSyncSection.Get<PermissionSyncOptions>()?.Enabled ?? true;
+
+        services.Configure<PermissionSyncOptions>(permissionSyncSection);
+        services.AddSingleton<PermissionCatalogSynchronizer>();
+
+        if (permissionSyncEnabled)
+        {
+            services.AddHostedService(
+                provider => provider.GetRequiredService<PermissionCatalogSynchronizer>());
+        }
+
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
 
@@ -122,7 +160,7 @@ public static class DependencyInjection
         ApiKeyEncryptionOptions.Validate(
             apiKeyEncryptionSection.Get<ApiKeyEncryptionOptions>() ?? new ApiKeyEncryptionOptions());
 
-        services.AddSingleton<IApiKeySecretProtector, AesGcmApiKeySecretProtector>();
+        services.AddSingleton<ISecretProtector, AesGcmApiKeySecretProtector>();
 
         services.AddHttpContextAccessor();
         services.AddSingleton(TimeProvider.System);
@@ -292,6 +330,27 @@ public static class DependencyInjection
         if (emailEnabled && !hangfire.Enabled)
         {
             services.AddHostedService<EmailDispatchWorker>();
+        }
+
+        // The webhook transport and the sweep that drives it. The transport is an HTTP client
+        // of its own, because a call to somebody else's server is a different kind of thing
+        // from a call to a database: it has a timeout, a status code and a body, and none of
+        // those belong to the retry rules the sweep applies.
+        services.AddScoped<IWebhookSender, HttpWebhookSender>();
+
+        var webhookSection = configuration.GetSection(WebhookDispatchOptions.SectionName);
+        var webhookOptions = webhookSection.Get<WebhookDispatchOptions>() ?? new WebhookDispatchOptions();
+
+        services.Configure<WebhookDispatchOptions>(webhookSection);
+
+        services.AddHttpClient(HttpWebhookSender.HttpClientName, client =>
+        {
+            client.Timeout = webhookOptions.Timeout;
+        });
+
+        if (webhookOptions.Enabled && !hangfire.Enabled)
+        {
+            services.AddHostedService<WebhookDispatchWorker>();
         }
 
         return services;

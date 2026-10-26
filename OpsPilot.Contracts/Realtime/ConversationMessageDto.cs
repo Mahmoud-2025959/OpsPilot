@@ -7,9 +7,11 @@ namespace OpsPilot.Contracts.Realtime;
 /// <remarks>
 /// The sender rides along even though the hub already knows who is connected: the receiving
 /// client has to render who said it, and re-deriving that from a second lookup would give the
-/// two ends two chances to disagree about it.
+/// two ends two chances to disagree about it. <see cref="SenderName"/> is the display name as it
+/// read at send time, not an id the client would have to resolve itself.
 /// </remarks>
 public sealed record ConversationMessageDto(
     Guid SenderId,
+    string SenderName,
     string Text,
     DateTimeOffset SentAt);

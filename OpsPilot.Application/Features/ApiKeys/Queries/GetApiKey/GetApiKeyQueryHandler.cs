@@ -10,9 +10,9 @@ namespace OpsPilot.Application.Features.ApiKeys.Queries.GetApiKey;
 public sealed class GetApiKeyQueryHandler : IRequestHandler<GetApiKeyQuery, ApiKeyDto>
 {
     private readonly IApiKeyRepository _repository;
-    private readonly IApiKeySecretProtector _protector;
+    private readonly ISecretProtector _protector;
 
-    public GetApiKeyQueryHandler(IApiKeyRepository repository, IApiKeySecretProtector protector)
+    public GetApiKeyQueryHandler(IApiKeyRepository repository, ISecretProtector protector)
     {
         _repository = repository;
         _protector = protector;

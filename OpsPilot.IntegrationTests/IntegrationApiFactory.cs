@@ -48,9 +48,18 @@ public sealed class IntegrationApiFactory(
                 // The outbox dispatcher is off for the same reason; a test drives a pass itself.
                 ["OutboxProcessor:Enabled"] = "false",
 
+                // The startup permission sweep is off: it would make a pass over every company
+                // in the shared fixture database for every host a test builds. Its behaviour is
+                // covered by PermissionCatalogSyncTests, which drives the pass directly.
+                ["Permissions:Enabled"] = "false",
+
                 // So does the email sweep: its timer would deliver rows into the shared
                 // fixture database behind the back of the test that is asserting on them.
                 ["EmailDispatch:Enabled"] = "false",
+
+                // And the webhook sweep, for the same reason: it would call endpoints behind
+                // the back of the test that is asserting on them.
+                ["WebhookDispatch:Enabled"] = "false",
 
                 // Hangfire is the scheduler only when it is switched on, and it must never be on
                 // in a test host: it would both own the schedules above and create its own tables

@@ -10,9 +10,9 @@ public sealed class GetAllApiKeysQueryHandler
     : IRequestHandler<GetAllApiKeysQuery, PagedResponse<ApiKeyDto>>
 {
     private readonly IApiKeyRepository _repository;
-    private readonly IApiKeySecretProtector _protector;
+    private readonly ISecretProtector _protector;
 
-    public GetAllApiKeysQueryHandler(IApiKeyRepository repository, IApiKeySecretProtector protector)
+    public GetAllApiKeysQueryHandler(IApiKeyRepository repository, ISecretProtector protector)
     {
         _repository = repository;
         _protector = protector;

@@ -27,6 +27,10 @@ public static class PermissionCatalog
         new(PermissionNames.IncidentsResolve, "Incidents", "Mark an incident resolved."),
         new(PermissionNames.IncidentsClose, "Incidents", "Close a resolved incident."),
 
+        new(PermissionNames.PostmortemsRead, "Postmortems", "Read postmortems and their content."),
+        new(PermissionNames.PostmortemsWrite, "Postmortems", "Draft, edit and send a postmortem for review."),
+        new(PermissionNames.PostmortemsPublish, "Postmortems", "Publish a reviewed postmortem."),
+
         new(PermissionNames.ServicesManage, "Catalogue", "Create and edit services."),
         new(PermissionNames.TeamsManage, "Catalogue", "Create teams and manage their members."),
         new(PermissionNames.UsersManage, "Administration", "Invite, edit, activate and deactivate users."),
@@ -34,6 +38,8 @@ public static class PermissionCatalog
         new(PermissionNames.SlaManage, "Administration", "Configure the response and resolution targets."),
         new(PermissionNames.ApiKeysManage, "Administration", "Issue and revoke ingestion API keys."),
         new(PermissionNames.NotificationsConfigure, "Administration", "Configure notification channels and preferences."),
+        new(PermissionNames.WebhooksRead, "Administration", "Read webhook endpoints and their deliveries."),
+        new(PermissionNames.WebhooksManage, "Administration", "Register, edit and retire webhook endpoints."),
         new(PermissionNames.AuditRead, "Governance", "Read the audit log."),
         new(PermissionNames.AnalyticsRead, "Governance", "Read the dashboard and analytics summaries."),
         new(PermissionNames.TenantSettings, "Governance", "Change company-wide settings."),

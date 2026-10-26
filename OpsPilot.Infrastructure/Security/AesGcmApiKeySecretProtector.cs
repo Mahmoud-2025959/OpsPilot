@@ -6,22 +6,23 @@ using OpsPilot.Application.Abstractions;
 namespace OpsPilot.Infrastructure.Security;
 
 /// <summary>
-/// Encrypts the stored copy of an ingestion key with AES-256-GCM.
+/// Encrypts stored secrets with AES-256-GCM.
 /// </summary>
 /// <remarks>
 /// <para>
 /// GCM is authenticated, not just scrambled: the tag travels with the ciphertext, so a
-/// tampered row fails to decrypt instead of yielding a corrupted key. A fresh nonce per
+/// tampered row fails to decrypt instead of yielding a corrupted value. A fresh nonce per
 /// write is what makes that safe — reusing one under the same key would leak the XOR of two
 /// plaintexts, so the nonce is drawn from the CSPRNG every time and never stored.
 /// </para>
 /// <para>
 /// The layout of the stored value is nonce, then tag, then ciphertext, all base64-encoded
 /// together. Decryption tries the current key first and then the retired ones, so changing
-/// the configured key does not strand the rows encrypted under the old one.
+/// the configured key does not strand rows encrypted under the old one. Used for ingestion
+/// keys and webhook secrets.
 /// </para>
 /// </remarks>
-public sealed class AesGcmApiKeySecretProtector : IApiKeySecretProtector
+public sealed class AesGcmApiKeySecretProtector : ISecretProtector
 {
     /// <summary>The key length AES-256 expects.</summary>
     public const int KeySize = ApiKeyEncryptionOptions.KeySize;
@@ -36,11 +37,11 @@ public sealed class AesGcmApiKeySecretProtector : IApiKeySecretProtector
         _keys = ApiKeyEncryptionOptions.Resolve(options.Value);
     }
 
-    public string Protect(string rawKey)
+    public string Protect(string rawSecret)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(rawKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rawSecret);
 
-        var plaintext = Encoding.UTF8.GetBytes(rawKey);
+        var plaintext = Encoding.UTF8.GetBytes(rawSecret);
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[TagSize];
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
