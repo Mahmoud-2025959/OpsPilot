@@ -10,7 +10,7 @@
 | Application | `OpsPilot.Application` | منطق الأعمال / Use Cases |
 | Contracts | `OpsPilot.Contracts` | عقود الـ DTOs ورسائل التبادل |
 | Domain | `OpsPilot.Domain` | الكيانات والدومين (أعمق طبقة) |
-| Infrastructure | `OpsPilot.Infrastructure` | الاتصالات الخارجية (DB, Redis, RabbitMQ, Notifications) |
+| Infrastructure | `OpsPilot.Infrastructure` | الاتصالات الخارجية (DB, Identity, Notifications, ناشر RabbitMQ اختياري, Background Jobs) |
 | Tests — Architecture | `OpsPilot.ArchitectureTests` | فرض قواعد العمارة (منع الدوائر في المراجع) |
 | Tests — Integration | `OpsPilot.IntegrationTests` | اختبارات التكامل مع الخدمات الحقيقية |
 | Tests — Unit | `OpsPilot.UnitTests` | اختبارات الوحدات لكل Use Case |

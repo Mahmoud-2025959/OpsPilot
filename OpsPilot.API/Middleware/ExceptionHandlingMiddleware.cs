@@ -85,6 +85,22 @@ public sealed class ExceptionHandlingMiddleware
                 BusinessCode.Forbidden,
                 [forbidden.Message]),
 
+            // A rejected state change is a conflict with the resource's current state, not a
+            // malformed request (plan, "تغيير الحالة"): 409 rather than the generic 400 that
+            // DomainException would otherwise produce.
+            InvalidStateTransitionException transition => (
+                StatusCodes.Status409Conflict,
+                BusinessCode.Conflict,
+                [transition.Message]),
+
+            // Well-formed but unactionable -- an event naming a service the company has not
+            // registered (plan, UC-06). 422 rather than 400 or 404: the request is understood,
+            // the reference inside it just cannot be resolved.
+            UnprocessableEntityException unprocessable => (
+                StatusCodes.Status422UnprocessableEntity,
+                BusinessCode.UnprocessableEntity,
+                [unprocessable.Message]),
+
             DomainException domain => (
                 StatusCodes.Status400BadRequest,
                 BusinessCode.ValidationError,

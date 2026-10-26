@@ -61,6 +61,22 @@ public sealed class Service : TenantOwnedEntity
         };
     }
 
+    /// <summary>
+    /// Renames the service, re-slugs it, and moves it between environments. The identity triple
+    /// (name, environment) is unique per tenant in the database, so a rejected change here is a
+    /// conflict with an existing service rather than a malformed request.
+    /// </summary>
+    public void UpdateDetails(string name, string slug, EnvironmentType environment, string? description)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(slug);
+
+        Name = name.Trim();
+        Slug = slug.Trim().ToLowerInvariant();
+        Environment = environment;
+        Description = description?.Trim();
+    }
+
     /// <summary>Reassigns ownership. Passing null leaves the service unowned.</summary>
     public void AssignOwnerTeam(Guid? teamId)
     {

@@ -24,6 +24,12 @@ public sealed class User : IdentityUser<Guid>, IAuditableEntity, ISoftDeletable,
 
     private User(string email, string displayName, bool isActive) : this()
     {
+        // The user name is the email, not the display name: Identity carries a globally unique
+        // index over the normalized user name, while display names are not unique — two people
+        // (in the same company or in different ones) may legitimately share one. Using the
+        // display name here made the second such account fail to insert, and would have made
+        // the unique index reject a perfectly valid sign-up. ChangeEmail already keeps the two
+        // in step, and sign-in is by email alone (ERD §3).
         Email = email;
         NormalizedEmail = email.ToUpperInvariant();
         UserName = email;

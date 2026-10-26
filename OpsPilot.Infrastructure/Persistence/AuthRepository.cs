@@ -1,37 +1,41 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpsPilot.Application.Abstractions;
 using OpsPilot.Application.Common.Constants;
 using OpsPilot.Application.Common.Settings;
 using OpsPilot.Application.Features.Auth.Commands.Login;
-using OpsPilot.Application.Features.Auth.Commands.Register;
+using OpsPilot.Application.Features.Auth.Commands.RegisterTenant;
 using OpsPilot.Contracts.Auth;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Exceptions;
+using OpsPilot.Domain.Identity;
 
 namespace OpsPilot.Infrastructure.Persistence;
 
 public sealed class AuthRepository : IAuthRepository
 {
-    private readonly AppDbContext _context;
     private readonly IUserRepository _userRepository;
+    private readonly ITenantProvisioner _tenantProvisioner;
+    private readonly ITenantRepository _tenants;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
-    private readonly Microsoft.Extensions.Options.IOptionsMonitor<JwtOptions> _jwtOptions;
+    private readonly IOptionsMonitor<JwtOptions> _jwtOptions;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<AuthRepository> _logger;
 
     public AuthRepository(
-        AppDbContext context,
         IUserRepository userRepository,
+        ITenantProvisioner tenantProvisioner,
+        ITenantRepository tenants,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
-        Microsoft.Extensions.Options.IOptionsMonitor<JwtOptions> jwtOptions,
+        IOptionsMonitor<JwtOptions> jwtOptions,
         TimeProvider timeProvider,
         ILogger<AuthRepository> logger)
     {
-        _context = context;
         _userRepository = userRepository;
+        _tenantProvisioner = tenantProvisioner;
+        _tenants = tenants;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _jwtOptions = jwtOptions;
@@ -41,12 +45,9 @@ public sealed class AuthRepository : IAuthRepository
 
     public async Task<AuthResponseDto> LoginAsync(LoginCommand request, CancellationToken cancellationToken = default)
     {
-        var normalized = request.Identifier.Trim().ToUpperInvariant();
-
-        var user = await _context.Users
-            .Include(u => u.Roles)
-            .ThenInclude(r => r.Permissions)
-            .FirstOrDefaultAsync(u => u.NormalizedEmail == normalized, cancellationToken);
+        // Not tenant-filtered on purpose: the email is globally unique and no tenant can be
+        // resolved before the credential has been verified (ERD §3).
+        var user = await _userRepository.FindByEmailAcrossTenantsAsync(request.Identifier, cancellationToken);
 
         if (user is null)
         {
@@ -66,50 +67,52 @@ public sealed class AuthRepository : IAuthRepository
             throw new UnauthorizedException(ExceptionMessages.InvalidEmailOrPassword);
         }
 
+        // A closed company accepts no new sign-ins. Its Owner is the exception: they are the
+        // one who can bring it back, and locking them out would make the state permanent.
+        // Checked after the password so a wrong password still says "wrong password" and
+        // never reveals whether the company is closed.
+        var tenant = await _tenants.GetByIdAsync(user.TenantId, cancellationToken);
+
+        if (tenant is { IsActive: false }
+            && !user.Roles.Any(r =>
+                string.Equals(r.Name, SystemRoleNames.Owner, StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogWarning("Login blocked for user {UserId}: the company is closed", user.Id);
+            throw new ForbiddenException(ExceptionMessages.CompanyDormant);
+        }
+
         user.RecordLogin(_timeProvider.GetUtcNow());
         await _userRepository.UpdateAsync(user, cancellationToken);
 
         _logger.LogInformation("User {UserId} logged in successfully", user.Id);
 
         return await BuildAuthResponseAsync(user, cancellationToken);
-    }
-
-    public async Task<AuthResponseDto> RegisterAsync(RegisterCommand request, CancellationToken cancellationToken = default)
+    }    public async Task<AuthResponseDto> RegisterTenantAsync(
+        RegisterTenantCommand request,
+        CancellationToken cancellationToken = default)
     {
-        if (await _userRepository.EmailExistsAsync(request.TenantId, request.Email, cancellationToken))
+        // Sign-in is by email alone, so the address must be unique across the whole system.
+        if (await _userRepository.EmailExistsAcrossTenantsAsync(request.Email, cancellationToken))
         {
             throw new ConflictException(ExceptionMessages.EmailAlreadyExists);
         }
 
-        var user = User.Create(request.TenantId, request.Email, request.DisplayName);
+        var provisioned = await _tenantProvisioner.ProvisionAsync(
+            request.CompanyName,
+            request.Slug,
+            cancellationToken);
+
+        var user = User.Create(provisioned.Tenant.Id, request.Email, request.DisplayName);
         user.SetPasswordHash(_passwordHasher.Hash(request.Password));
-
-        if (request.Roles is { Count: > 0 })
-        {
-            var distinctRoles = request.Roles
-                .Where(r => !string.IsNullOrWhiteSpace(r))
-                .Select(r => r.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var roles = await _userRepository.GetRolesByNamesAsync(user.TenantId, distinctRoles, cancellationToken);
-            var foundNames = roles.Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var missing = distinctRoles.Where(r => !foundNames.Contains(r)).ToList();
-
-            if (missing.Count != 0)
-            {
-                throw new DomainException(ExceptionMessages.RolesDoNotExist(missing));
-            }
-
-            foreach (var role in roles)
-            {
-                user.AssignRole(role);
-            }
-        }
+        user.AssignRole(provisioned.OwnerRole);
+        user.RecordLogin(_timeProvider.GetUtcNow());
 
         await _userRepository.AddAsync(user, cancellationToken);
 
-        _logger.LogInformation("Registered new user {UserId} in tenant {TenantId}", user.Id, user.TenantId);
+        _logger.LogInformation(
+            "Provisioned tenant {TenantId} for owner {UserId}",
+            provisioned.Tenant.Id,
+            user.Id);
 
         return await BuildAuthResponseAsync(user, cancellationToken);
     }

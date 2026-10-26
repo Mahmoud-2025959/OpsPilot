@@ -127,16 +127,28 @@ public sealed class AuditingSaveChangesInterceptor(
                 continue;
             }
 
-            var principalKey = foreignKey.PrincipalKey.Properties.SingleOrDefault();
-            if (principalKey is null || entry.Property(principalKey.Name).CurrentValue is not Guid { } id || id == Guid.Empty)
+            // Identity join tables are single-column foreign keys. Read the value from the
+            // dependent's own FK property -- on a join entry it is named after the navigation
+            // (e.g. RolesId), not after the principal key it points at -- and use the principal
+            // key name only to read the principal's value.
+            if (foreignKey.Properties.Count != 1 || foreignKey.PrincipalKey.Properties.Count != 1)
             {
                 continue;
             }
 
+            var dependentPropertyName = foreignKey.Properties[0].Name;
+
+            if (entry.Property(dependentPropertyName).CurrentValue is not Guid { } id || id == Guid.Empty)
+            {
+                continue;
+            }
+
+            var principalKeyName = foreignKey.PrincipalKey.Properties[0].Name;
+
             var tracked = context.ChangeTracker.Entries()
                 .Where(e => e.Metadata.ClrType == principalClrType)
                 .Select(e => e.Entity)
-                .FirstOrDefault(entity => id.Equals(ReadKey(entity, principalKey.Name)));
+                .FirstOrDefault(entity => id.Equals(ReadKey(entity, principalKeyName)));
 
             if (tracked is ITenantOwned trackedOwned)
             {

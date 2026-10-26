@@ -214,6 +214,7 @@ erDiagram
         string Name
         string KeyPrefix
         string KeyHash
+        string KeyCiphertext
         bool IsActive
         datetime CreatedAt
         datetime ExpiresAt
@@ -291,7 +292,7 @@ erDiagram
 | الجدول | ملاحظات | الفهارس / القيود |
 |---|---|---|
 | **AuditLog** | إضافة فقط. `OldValues` و`NewValues` JSON. `ActorUserId` فاضي لأفعال النظام مثل SLA | `INDEX(TenantId, CreatedAt)`, `INDEX(TenantId, EntityType, EntityId)` |
-| **ApiKey** | نخزن `KeyHash` فقط (SHA-256). الـ `KeyPrefix` (أول 8 حروف) للبحث السريع وللعرض في الواجهة | `UNIQUE(KeyPrefix)` |
+| **ApiKey** | نخزن `KeyHash` (SHA-256) — وهو اللي بيتطابق معاه الـ authentication — وكمان `KeyCiphertext`: نسخة مشفّرة من المفتاح الخام (AES-256-GCM) عشان المفتاح اللي ضاع يبقى ينقرأ تاني بدل ما يتلغى. الـ `KeyPrefix` (أول 8 حروف) للبحث السريع وللعرض في الواجهة. `KeyCiphertext` فاضي للمفاتيح اللي اتعملت قبل إضافة العمود | `UNIQUE(KeyPrefix)` |
 
 ### جداول البنية التحتية (بدون TenantId)
 

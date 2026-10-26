@@ -83,15 +83,40 @@ public sealed class Role : IdentityRole<Guid>, IAuditableEntity, ISoftDeletable,
     }
 
     /// <summary>Creates one of the five protected roles provisioned with a tenant.</summary>
-    public static Role CreateSystemRole(Guid tenantId, string name, string? description = null)
+    /// <param name="tenantId">The company the role belongs to.</param>
+    /// <param name="name">The role name, one of <see cref="SystemRoleNames"/>.</param>
+    /// <param name="description">Optional description.</param>
+    /// <param name="permissions">
+    /// The permissions seeded with the role. This is the one place the Owner role may receive
+    /// permissions: <see cref="AssignPermission"/> is deliberately closed afterwards, because
+    /// the Owner's set is fixed for the lifetime of the tenant.
+    /// </param>
+    public static Role CreateSystemRole(
+        Guid tenantId,
+        string name,
+        string? description = null,
+        IEnumerable<Permission>? permissions = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return new Role(name.Trim(), description?.Trim())
+        var role = new Role(name.Trim(), description?.Trim())
         {
             TenantId = tenantId,
             IsSystem = true
         };
+
+        if (permissions is not null)
+        {
+            foreach (var permission in permissions)
+            {
+                if (permission is not null && !role._permissions.Contains(permission))
+                {
+                    role._permissions.Add(permission);
+                }
+            }
+        }
+
+        return role;
     }
 
     public void Rename(string name, string? description = null)
@@ -125,6 +150,27 @@ public sealed class Role : IdentityRole<Guid>, IAuditableEntity, ISoftDeletable,
     }
 
     public bool HasPermission(string permissionName) => _permissions.Any(p => p.Name == permissionName);
+
+    /// <summary>
+    /// Grants a permission that was added to the catalogue after this role was created.
+    /// </summary>
+    /// <remarks>
+    /// Housekeeping rather than a user action, which is why <see cref="EnsurePermissionsMutable"/>
+    /// does not apply: the Owner's set is frozen against callers who could widen it for
+    /// themselves, but a build that ships a new permission must still reach the Owner — the
+    /// alternative is a company that silently lacks a capability the product defines.
+    /// Additive only; there is deliberately no matching removal, so a role narrowed on purpose
+    /// is never reverted by a deployment.
+    /// </remarks>
+    public void ApplyCataloguePermission(Permission permission)
+    {
+        ArgumentNullException.ThrowIfNull(permission);
+
+        if (!_permissions.Contains(permission))
+        {
+            _permissions.Add(permission);
+        }
+    }
 
     public void SoftDelete()
     {

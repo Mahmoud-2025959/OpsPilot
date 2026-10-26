@@ -14,5 +14,6 @@ public enum IncidentEventType
     SlaDeadlineSet,
     SlaViolationDetected,
     CommentAdded,
-    PostmortemCreated
+    PostmortemCreated,
+    EventIngested
 }

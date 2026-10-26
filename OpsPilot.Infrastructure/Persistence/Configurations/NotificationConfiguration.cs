@@ -21,6 +21,12 @@ public sealed class NotificationConfiguration : IEntityTypeConfiguration<Notific
         builder.Property(n => n.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(n => n.SentAt);
         builder.Property(n => n.ReadAt);
+        builder.Property(n => n.Attempts).IsRequired();
+
+        // Bounded like the outbox's Error column: the reason an exception carries can be longer
+        // than any column should hold, and the sweep truncates before it writes so a recording
+        // of why delivery failed never becomes a failure of its own.
+        builder.Property(n => n.LastError).HasMaxLength(2000);
 
         // Backs the unread badge: a user's notifications ordered by whether they are read.
         builder.HasIndex(n => new { n.TenantId, n.UserId, n.ReadAt });
