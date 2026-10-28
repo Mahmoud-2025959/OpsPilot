@@ -1,0 +1,364 @@
+### OPS_FLOW - OpsPilot REST Client
+# Base URL
+@baseUrl = http://localhost:5093
+
+# Variables (fill or update after requests)
+@accessToken =
+@refreshToken =
+@tenantId =
+@ownerEmail =
+@ownerPassword = Sup3rSecret!
+@companyName = Acme
+@companySlug = acme
+@serviceId =
+@incidentId =
+@userId =
+@teamId =
+@apiKeyId =
+@apiKey =
+@webhookId =
+@postmortemId =
+
+### 1) REGISTER TENANT (Create Company + Owner) - AllowAnonymous
+# @name registerTenant
+POST {{baseUrl}}/api/v1/auth/register-tenant
+Content-Type: application/json
+
+{
+  "companyName": "{{companyName}}",
+  "slug": "{{companySlug}}",
+  "email": "{{ownerEmail}}",
+  "displayName": "Acme Owner",
+  "password": "{{ownerPassword}}",
+  "confirmPassword": "{{ownerPassword}}"
+}
+
+### Extract tokens from register response (copy manually or use REST Client environment)
+# After sending: copy data.accessToken -> @accessToken, data.refreshToken -> @refreshToken
+
+### 2) LOGIN (if owner exists) - AllowAnonymous
+# @name login
+POST {{baseUrl}}/api/vUrl? Nope, use correct URL
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "{{ownerEmail}}",
+  "password": "{{ownerPassword}}"
+}
+
+### 3) REFRESH TOKEN - AllowAnonymous
+# @name refresh
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### 4) GET CURRENT USER
+# @name getMe
+GET {{baseUrl}}/api/v1/users/me
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 5) PERMISSIONS & ROLES & TENANT
+GET {{baseUrl}}/api/v1/permissions
+Authorization: Bearer {{accessToken}}
+
+###
+
+GET {{baseUrl}}/api/v1/roles
+Authorization: Bearer {{accessToken}}
+
+###
+
+GET {{baseUrl}}/api/v1/tenant
+Authorization: Bearer {{accessToken}}
+
+### 6) USERS
+GET {{baseUrl}}/api/v1/users?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/users
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "email": "engineer@acme.test",
+  "displayName": "Engineer One",
+  "password": "Sup3rSecret!",
+  "confirmPassword": "Sup3rSecret!",
+  "roles": ["Engineer"]
+}
+
+### 7) TEAMS
+GET {{baseUrl}}/api/v1/teams?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/teams
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Platform",
+  "description": "Platform Team"
+}
+
+### Add member - replace {{teamId}} and {{userId}}
+POST {{baseUrl}}/api/v1/teams/{{teamId}}/members
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "role": "Lead"
+}
+
+### 8) SERVICES
+GET {{baseUrl}}/api/v1/services?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/services
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "API Gateway",
+  "environment": "Production",
+  "slug": "api-gateway",
+  "description": "Main gateway",
+  "repositoryUrl": "https://github.com/acme/api-gateway",
+  "ownerTeamId": "{{teamId}}"
+}
+
+### 9) SLA POLICIES
+GET {{baseUrl}}/api/v1/sla-policies
+Authorization: Bearer {{accessToken}}
+
+###
+
+PUT {{baseUrl}}/api/v1/sla-policies
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "policies": [
+    { "severity": "P0", "responseMinutes": 15, "resolutionMinutes": 60 },
+    { "severity": "P1", "responseMinutes": 30, "resolutionMinutes": 120 },
+    { "severity": "P2", "responseMinutes": 60, "resolutionMinutes": 240 },
+    { "severity": "P3", "responseMinutes": 120, "resolutionMinutes": 480 },
+    { "severity": "P4", "responseMinutes": 240, "resolutionMinutes": 1440 }
+  ]
+}
+
+### 10) INCIDENTS
+GET {{baseUrl}}/api/v1/incidents?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/incidents
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "serviceId": "{{serviceId}}",
+  "title": "Database connection pool exhausted",
+  "description": "Users getting timeouts on login",
+  "severity": "P1",
+  "correlationKey": "deploy-demo"
+}
+
+### Transition - replace {{incidentId}} with the id from create response
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "toStatus": "Acknowledged",
+  "note": "On it"
+}
+
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "toStatus": "Investigating",
+  "note": "Investigating logs"
+}
+
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "toStatus": "Mitigated",
+  "note": "Scaled pool"
+}
+
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "toStatus": "Resolved",
+  "note": "Fixed"
+}
+
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "toStatus": "Closed",
+  "note": "Done"
+}
+
+### Add comment
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/comments
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "body": "Investigating logs..."
+}
+
+### Timeline
+GET {{baseUrl}}/api/v1/incidents/{{incidentId}}/timeline
+Authorization: Bearer {{accessToken}}
+
+### Comments
+GET {{baseUrl}}/api/v1/incidents/{{incidentId}}/comments
+Authorization: Bearer {{accessToken}}
+
+### 11) POSTMORTEMS
+# Create postmortem for incident (must exist)
+POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/postmortem
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Postmortem: DB pool exhaustion",
+  "summary": "Short summary",
+  "rootCause": "Connection leak",
+  "actionItems": [
+    { "title": "Fix leak", "ownerUserId": "{{userId}}", "dueDate": "2026-11-01T00:00:00+00:00" }
+  ]
+}
+
+###
+
+POST {{baseUrl}}/api/v1/postmortems/{{postmortemId}}/review
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/postmortems/{{postmortemId}}/publish
+Authorization: Bearer {{accessToken}}
+
+### 12) API KEYS
+GET {{baseUrl}}/api/v1/api-keys?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/api-keys
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "ingestion-key",
+  "expiresAt": "2027-10-27T00:00:00+00:00"
+}
+
+### 13) EVENTS INGESTION (USE API KEY, NOT BEARER)
+POST {{baseUrl}}/api/v1/events
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "service": "api-gateway",
+  "environment": "Production",
+  "severity": "P1",
+  "message": "High latency detected",
+  "timestamp": "2026-10-27T12:34:56+00:00"
+}
+
+### 14) WEBHOOKS
+GET {{baseUrl}}/api/v1/webhooks?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{baseUrl}}/api/v1/webhooks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "url": "https://example.com/webhook"
+}
+
+### 15) NOTIFICATIONS, PREFERENCES, ANALYTICS, AUDIT
+GET {{baseUrl}}/api/v1/notifications?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+PUT {{baseUrl}}/api/v1/notification-preferences
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "preferences": [
+    { "severity": "P0", "channel": "Email", "enabled": true },
+    { "severity": "P1", "channel": "Email", "enabled": true },
+    { "severity": "P0", "channel": "InApp", "enabled": true }
+  ]
+}
+
+###
+
+GET {{baseUrl}}/api/v1/analytics/summary
+Authorization: Bearer {{accessToken}}
+
+###
+
+GET {{baseUrl}}/api/v1/audit-logs?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+### 16) CHANGE PASSWORD & LOGOUT
+POST {{baseUrl}}/api/v1/auth/change-password
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "currentPassword": "{{ownerPassword}}",
+  "newPassword": "NewSup3rSecret!",
+  "confirmNewPassword": "NewSup3rSecret!"
+}
+
+###
+
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}

@@ -59,11 +59,16 @@ public sealed class WebhookDispatchTests(LocalDbFixture db) : IClassFixture<Loca
         await using var provider = BuildContainer(sender);
 
         var worker = BuildWorker(provider);
+        var ourDelivery = await company.Context.WebhookDeliveries
+            .Where(d => d.EndpointId == endpoint.Id)
+            .OrderByDescending(d => d.CreatedAt)
+            .FirstAsync();
+
         var delivered = await worker.DispatchPendingAsync();
 
         Assert.True(delivered >= 1);
 
-        var call = Assert.Single(sender.Sent, c => c.DeliveryId != Guid.Empty.ToString());
+        var call = Assert.Single(sender.Sent, c => c.DeliveryId == ourDelivery.Id.ToString());
 
         Assert.Equal(Url, call.Url);
         Assert.Equal(IntegrationEventTypes.IncidentCreated, call.EventType);
