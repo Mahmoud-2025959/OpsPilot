@@ -54,7 +54,7 @@ public class LoggingOutboxPublisherTests
             l => l.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("incident.created")),
+                It.Is<It.IsAnyType>((v, _) => (v!.ToString() ?? string.Empty).Contains("incident.created")),
                 null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
