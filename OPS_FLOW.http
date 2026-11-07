@@ -1,25 +1,25 @@
-### OPS_FLOW - OpsPilot REST Client
-# Base URL
+### OPS_FLOW - OpsPilot E2E flow (VS Code REST Client)
+#
+# HOW TO RUN
+#   1. Start the API:  dotnet run --project OpsPilot.API --launch-profile http
+#   2. Send the requests top-to-bottom, in order. Each request has a # @name so later
+#      requests can read the id/token out of its response:
+#         {{login.response.body.$.data.accessToken}}
+#   3. Registering a tenant only works once per slug/email. On a later run either change
+#      @companySlug / @ownerEmail below, or skip step 1 and start at step 2 (Login).
+#
+# The API wraps every payload in { "succeeded", "code", "data", ... }, hence the
+# "$.data" in every capture below.
+
 @baseUrl = http://localhost:5093
 
-# Variables (fill or update after requests)
-@accessToken =
-@refreshToken =
-@tenantId =
-@ownerEmail =
+@ownerEmail = owner@acme.test
 @ownerPassword = Sup3rSecret!
-@companyName = Acme
-@companySlug = acme
-@serviceId =
-@incidentId =
-@userId =
-@teamId =
-@apiKeyId =
-@apiKey =
-@webhookId =
-@postmortemId =
+@companyName = Acme Demo
+@companySlug = acme-demo
 
-### 1) REGISTER TENANT (Create Company + Owner) - AllowAnonymous
+###
+### 1) REGISTER TENANT (Company + Owner) - AllowAnonymous
 # @name registerTenant
 POST {{baseUrl}}/api/v1/auth/register-tenant
 Content-Type: application/json
@@ -33,12 +33,9 @@ Content-Type: application/json
   "confirmPassword": "{{ownerPassword}}"
 }
 
-### Extract tokens from register response (copy manually or use REST Client environment)
-# After sending: copy data.accessToken -> @accessToken, data.refreshToken -> @refreshToken
-
-### 2) LOGIN (if owner exists) - AllowAnonymous
+###
+### 2) LOGIN - AllowAnonymous
 # @name login
-POST {{baseUrl}}/api/vUrl? Nope, use correct URL
 POST {{baseUrl}}/api/v1/auth/login
 Content-Type: application/json
 
@@ -47,43 +44,43 @@ Content-Type: application/json
   "password": "{{ownerPassword}}"
 }
 
+###
 ### 3) REFRESH TOKEN - AllowAnonymous
 # @name refresh
 POST {{baseUrl}}/api/v1/auth/refresh
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshToken}}"
+  "refreshToken": "{{login.response.body.$.data.refreshToken}}"
 }
 
+###
 ### 4) GET CURRENT USER
 # @name getMe
 GET {{baseUrl}}/api/v1/users/me
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Accept: application/json
 
-### 5) PERMISSIONS & ROLES & TENANT
+###
+### 5) PERMISSIONS, ROLES, TENANT
 GET {{baseUrl}}/api/v1/permissions
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
 GET {{baseUrl}}/api/v1/roles
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
 GET {{baseUrl}}/api/v1/tenant
-Authorization: Bearer {{accessToken}}
-
-### 6) USERS
-GET {{baseUrl}}/api/v1/users?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
-
+### 6) USERS - create an Engineer, then list
+# @name createUser
 POST {{baseUrl}}/api/v1/users
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -94,14 +91,16 @@ Content-Type: application/json
   "roles": ["Engineer"]
 }
 
-### 7) TEAMS
-GET {{baseUrl}}/api/v1/teams?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
-
 ###
 
+GET {{baseUrl}}/api/v1/users?page=1&pageSize=20
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+
+###
+### 7) TEAMS - create, then add the Engineer
+# @name createTeam
 POST {{baseUrl}}/api/v1/teams
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -109,24 +108,22 @@ Content-Type: application/json
   "description": "Platform Team"
 }
 
-### Add member - replace {{teamId}} and {{userId}}
-POST {{baseUrl}}/api/v1/teams/{{teamId}}/members
-Authorization: Bearer {{accessToken}}
+###
+
+POST {{baseUrl}}/api/v1/teams/{{createTeam.response.body.$.data}}/members
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
-  "userId": "{{userId}}",
+  "userId": "{{createUser.response.body.$.data}}",
   "role": "Lead"
 }
 
-### 8) SERVICES
-GET {{baseUrl}}/api/v1/services?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
-
 ###
-
+### 8) SERVICES - create, then read it back
+# @name createService
 POST {{baseUrl}}/api/v1/services
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -135,50 +132,76 @@ Content-Type: application/json
   "slug": "api-gateway",
   "description": "Main gateway",
   "repositoryUrl": "https://github.com/acme/api-gateway",
-  "ownerTeamId": "{{teamId}}"
+  "ownerTeamId": "{{createTeam.response.body.$.data}}"
 }
 
-### 9) SLA POLICIES
+###
+
+GET {{baseUrl}}/api/v1/services/{{createService.response.body.$.data}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+
+###
+### 9) SLA POLICIES - read, then update
 GET {{baseUrl}}/api/v1/sla-policies
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
 PUT {{baseUrl}}/api/v1/sla-policies
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
   "policies": [
-    { "severity": "P0", "responseMinutes": 15, "resolutionMinutes": 60 },
-    { "severity": "P1", "responseMinutes": 30, "resolutionMinutes": 120 },
-    { "severity": "P2", "responseMinutes": 60, "resolutionMinutes": 240 },
-    { "severity": "P3", "responseMinutes": 120, "resolutionMinutes": 480 },
-    { "severity": "P4", "responseMinutes": 240, "resolutionMinutes": 1440 }
+    { "severity": "Critical", "responseMinutes": 15, "resolutionMinutes": 60 },
+    { "severity": "High", "responseMinutes": 30, "resolutionMinutes": 120 },
+    { "severity": "Medium", "responseMinutes": 60, "resolutionMinutes": 240 },
+    { "severity": "Low", "responseMinutes": 120, "resolutionMinutes": 480 }
   ]
 }
 
-### 10) INCIDENTS
-GET {{baseUrl}}/api/v1/incidents?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
-
 ###
-
-POST {{baseUrl}}/api/v1/incidents
-Authorization: Bearer {{accessToken}}
+### 10) WEBHOOKS - register a local receiver before any incident exists
+# Use a receiver you control: `scripts\webhook-receiver.ps1` (localhost:5099),
+# webhook.site, or any echo server. Deliveries are staged when an incident event is stored.
+# @name createWebhook
+POST {{baseUrl}}/api/v1/webhooks
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
-  "serviceId": "{{serviceId}}",
+  "url": "http://localhost:5099/webhook"
+}
+
+###
+### 11) INCIDENTS - create, assign, transition, comment, read timeline
+# @name createIncident
+POST {{baseUrl}}/api/v1/incidents
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+Content-Type: application/json
+
+{
+  "serviceId": "{{createService.response.body.$.data}}",
   "title": "Database connection pool exhausted",
   "description": "Users getting timeouts on login",
-  "severity": "P1",
+  "severity": "High",
   "correlationKey": "deploy-demo"
 }
 
-### Transition - replace {{incidentId}} with the id from create response
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
-Authorization: Bearer {{accessToken}}
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/assign
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+Content-Type: application/json
+
+{
+  "assigneeId": "{{createUser.response.body.$.data}}"
+}
+
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/transitions
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -188,8 +211,8 @@ Content-Type: application/json
 
 ###
 
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
-Authorization: Bearer {{accessToken}}
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/transitions
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -199,8 +222,8 @@ Content-Type: application/json
 
 ###
 
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
-Authorization: Bearer {{accessToken}}
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/transitions
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -210,8 +233,8 @@ Content-Type: application/json
 
 ###
 
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
-Authorization: Bearer {{accessToken}}
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/transitions
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -221,8 +244,8 @@ Content-Type: application/json
 
 ###
 
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/transitions
-Authorization: Bearer {{accessToken}}
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/transitions
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -230,56 +253,55 @@ Content-Type: application/json
   "note": "Done"
 }
 
-### Add comment
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/comments
-Authorization: Bearer {{accessToken}}
+###
+
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/comments
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
   "body": "Investigating logs..."
 }
 
-### Timeline
-GET {{baseUrl}}/api/v1/incidents/{{incidentId}}/timeline
-Authorization: Bearer {{accessToken}}
+###
 
-### Comments
-GET {{baseUrl}}/api/v1/incidents/{{incidentId}}/comments
-Authorization: Bearer {{accessToken}}
+GET {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/timeline
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
-### 11) POSTMORTEMS
-# Create postmortem for incident (must exist)
-POST {{baseUrl}}/api/v1/incidents/{{incidentId}}/postmortem
-Authorization: Bearer {{accessToken}}
+###
+
+GET {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/comments
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+
+###
+### 12) POSTMORTEMS - create (incident must be resolved/closed), review, publish
+# @name createPostmortem
+POST {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}/postmortem
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
   "title": "Postmortem: DB pool exhaustion",
   "summary": "Short summary",
   "rootCause": "Connection leak",
-  "actionItems": [
-    { "title": "Fix leak", "ownerUserId": "{{userId}}", "dueDate": "2026-11-01T00:00:00+00:00" }
-  ]
+  "actionItems": "Fix the leak; add a pool-saturation alert"
 }
 
 ###
 
-POST {{baseUrl}}/api/v1/postmortems/{{postmortemId}}/review
-Authorization: Bearer {{accessToken}}
+POST {{baseUrl}}/api/v1/postmortems/{{createPostmortem.response.body.$.data.id}}/review
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
-POST {{baseUrl}}/api/v1/postmortems/{{postmortemId}}/publish
-Authorization: Bearer {{accessToken}}
-
-### 12) API KEYS
-GET {{baseUrl}}/api/v1/api-keys?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
+POST {{baseUrl}}/api/v1/postmortems/{{createPostmortem.response.body.$.data.id}}/publish
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
-
+### 13) API KEYS - create, then use the raw key to ingest an event
+# @name createApiKey
 POST {{baseUrl}}/api/v1/api-keys
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -287,64 +309,83 @@ Content-Type: application/json
   "expiresAt": "2027-10-27T00:00:00+00:00"
 }
 
-### 13) EVENTS INGESTION (USE API KEY, NOT BEARER)
+###
+
+GET {{baseUrl}}/api/v1/api-keys?page=1&pageSize=20
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+
+###
+### 14) EVENT INGESTION - X-API-Key, not Bearer
 POST {{baseUrl}}/api/v1/events
 Content-Type: application/json
-X-API-Key: {{apiKey}}
+X-API-Key: {{createApiKey.response.body.$.data.key}}
 
 {
-  "service": "api-gateway",
+  "service": "API Gateway",
   "environment": "Production",
-  "severity": "P1",
-  "message": "High latency detected",
-  "timestamp": "2026-10-27T12:34:56+00:00"
+  "severity": "High",
+  "message": "High latency detected"
 }
 
-### 14) WEBHOOKS
+###
+### 15) WEBHOOKS - list endpoints and deliveries
+# The endpoint itself is registered in step 10, before any incident exists: deliveries are
+# staged when an incident event is stored, so a webhook added afterwards hears about nothing.
 GET {{baseUrl}}/api/v1/webhooks?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
-POST {{baseUrl}}/api/v1/webhooks
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
+GET {{baseUrl}}/api/v1/webhooks/deliveries?page=1&pageSize=20
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
-{
-  "url": "https://example.com/webhook"
-}
-
-### 15) NOTIFICATIONS, PREFERENCES, ANALYTICS, AUDIT
+###
+### 16) NOTIFICATIONS, PREFERENCES, ANALYTICS, AUDIT
 GET {{baseUrl}}/api/v1/notifications?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
 PUT {{baseUrl}}/api/v1/notification-preferences
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
   "preferences": [
-    { "severity": "P0", "channel": "Email", "enabled": true },
-    { "severity": "P1", "channel": "Email", "enabled": true },
-    { "severity": "P0", "channel": "InApp", "enabled": true }
+    { "severity": "Critical", "channel": "Email", "enabled": true },
+    { "severity": "High", "channel": "Email", "enabled": true },
+    { "severity": "Critical", "channel": "InApp", "enabled": true }
   ]
 }
 
 ###
 
 GET {{baseUrl}}/api/v1/analytics/summary
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
 ###
 
 GET {{baseUrl}}/api/v1/audit-logs?page=1&pageSize=20
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 
-### 16) CHANGE PASSWORD & LOGOUT
+###
+### 17) SIGNALR - open the development console (browser, Development only)
+# GET {{baseUrl}}/signalr-test
+# Sign in with the owner email/password, then create or transition an incident in this
+# file: the page should show `notificationCreated` / `incidentUpdated`.
+
+###
+### 18) SLA - leave an incident open past its response window, then check violations
+# After creating a High incident, either wait for Hangfire's `sla-violation-sweep` (every
+# minute) or lower the policy response minutes and wait ≤ 60 seconds.
+GET {{baseUrl}}/api/v1/incidents/{{createIncident.response.body.$.data}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+
+###
+### 19) CHANGE PASSWORD & LOGOUT
+# WARNING: this changes the owner password. Update @ownerPassword (or skip) before re-running.
 POST {{baseUrl}}/api/v1/auth/change-password
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
@@ -356,9 +397,9 @@ Content-Type: application/json
 ###
 
 POST {{baseUrl}}/api/v1/auth/logout
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshToken}}"
+  "refreshToken": "{{login.response.body.$.data.refreshToken}}"
 }

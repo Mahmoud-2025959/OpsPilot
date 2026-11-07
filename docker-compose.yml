@@ -8,13 +8,16 @@
 #
 # Usage:
 #   copy .env.example .env      (then edit the passwords)
-#   docker compose up -d        (add -d to run detached)
+#   docker compose up -d
+#   docker compose --profile mail up -d   (adds smtp4dev)
 #
 # Services:
 #   SQL Server  localhost:1433
 #   Seq UI      http://localhost:8081   (ingestion on 5341)
 #   RabbitMQ    localhost:5672 (AMQP) and http://localhost:15672 (management UI)
 #   Redis       localhost:6379
+#   API         http://localhost:8080   (optional; built from ./Dockerfile)
+#   smtp4dev    http://localhost:3000   (profile `mail`; SMTP on localhost:2525)
 
 services:
   sqlserver:
@@ -79,6 +82,67 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    restart: unless-stopped
+
+  smtp4dev:
+    image: rnwood/smtp4dev:v3
+    container_name: opspilot-smtp4dev
+    profiles: ["mail"]
+    environment:
+      ServerOptions__HostName: smtp4dev
+    ports:
+      - "3000:80"
+      - "2525:25"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opspilot-api
+    depends_on:
+      sqlserver:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      HttpsRedirection__Enabled: "false"
+      Database__MigrateOnStartup: "true"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=OpsPilot;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      JWT__SIGNINGKEY: ${JWT__SIGNINGKEY}
+      JWT__Issuer: OpsPilot
+      JWT__Audience: OpsPilot.Client
+      APIKEYENCRYPTION__KEY: ${APIKEYENCRYPTION__KEY}
+      RabbitMq__Enabled: "true"
+      RabbitMq__ConsumerEnabled: "true"
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__VirtualHost: /
+      RabbitMq__UserName: ${RABBITMQ_USER:-guest}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-guest}
+      RabbitMq__UseTls: "false"
+      Hangfire__Enabled: "true"
+      Hangfire__DashboardEnabled: "true"
+      Hangfire__DashboardPath: /jobs
+      Hangfire__DashboardUsername: ${HANGFIRE_DASHBOARD_USER:-ops}
+      Hangfire__DashboardPassword: ${HANGFIRE_DASHBOARD_PASSWORD}
+      Smtp__Enabled: ${SMTP_ENABLED:-false}
+      Smtp__Host: smtp4dev
+      Smtp__Port: "25"
+      Smtp__UseStartTls: "false"
+      Smtp__From: no-reply@ops-pilot.test
+      Smtp__FromName: OpsPilot
+      Serilog__WriteTo__1__Args__serverUrl: http://seq:5341
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     restart: unless-stopped
 
 volumes:

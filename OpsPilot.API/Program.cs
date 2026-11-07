@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using OpsPilot.Application;
 using OpsPilot.Application.Abstractions;
+using OpsPilot.API;
 using OpsPilot.API.Health;
 using OpsPilot.API.Hubs;
 using OpsPilot.API.Middleware;
@@ -78,6 +79,18 @@ try
     builder.Services.AddControllers()
         .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
+    var cors = builder.Configuration.GetSection(CorsSettings.SectionName).Get<CorsSettings>()
+        ?? new CorsSettings();
+
+    if (cors.AllowedOrigins.Length > 0)
+    {
+        builder.Services.AddCors(options => options.AddPolicy(CorsSettings.PolicyName, policy =>
+            policy.WithOrigins(cors.AllowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials()));
+    }
+
     // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
     builder.Services.AddOpenApi();
     builder.Services.AddProblemDetails();
@@ -129,7 +142,22 @@ try
         app.MapGet("/signalr-test", () => Results.Redirect("/signalr-test.html"));
     }
 
-    app.UseHttpsRedirection();
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
+    // Compose serves the API over plain HTTP on 8080; HTTPS redirection would bounce the
+    // health check. A host that terminates TLS in front of the process can leave this on.
+    if (app.Configuration.GetValue("HttpsRedirection:Enabled", true))
+    {
+        app.UseHttpsRedirection();
+    }
+
+    if (cors.AllowedOrigins.Length > 0)
+    {
+        app.UseCors(CorsSettings.PolicyName);
+    }
 
     app.UseAuthentication();
 

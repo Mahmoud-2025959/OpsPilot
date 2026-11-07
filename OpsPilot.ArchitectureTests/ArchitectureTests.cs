@@ -1,5 +1,6 @@
 using System.Reflection;
 using NetArchTest.Rules;
+using OpsPilot.API.Scheduling;
 using OpsPilot.Domain.Entities;
 using Xunit;
 
@@ -78,5 +79,14 @@ public class ArchitectureTests
             .GetResult();
 
         Ensure(result);
+    }
+
+    [Fact]
+    public void Recurring_Job_Ids_Are_The_Four_Stable_Keys()
+    {
+        Assert.Equal("sla-violation-sweep", ScheduledJobsExtensions.SlaSweepJobId);
+        Assert.Equal("outbox-drain", ScheduledJobsExtensions.OutboxDrainJobId);
+        Assert.Equal("email-dispatch", ScheduledJobsExtensions.EmailDispatchJobId);
+        Assert.Equal("webhook-dispatch", ScheduledJobsExtensions.WebhookDispatchJobId);
     }
 }

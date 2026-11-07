@@ -1,4 +1,5 @@
 using Hangfire;
+using Hangfire.Dashboard;
 using Microsoft.Extensions.Options;
 using OpsPilot.Infrastructure.BackgroundJobs;
 
@@ -32,7 +33,10 @@ public static class ScheduledJobsExtensions
     /// <summary>Stable id for the email dispatch.</summary>
     public const string EmailDispatchJobId = "email-dispatch";
 
-    /// <summary>Registers the three recurring jobs and mounts the dashboard.</summary>
+    /// <summary>Stable id for the webhook dispatch.</summary>
+    public const string WebhookDispatchJobId = "webhook-dispatch";
+
+    /// <summary>Registers the four recurring jobs and mounts the dashboard.</summary>
     public static WebApplication UseScheduledJobs(this WebApplication app)
     {
         var options = app.Services.GetRequiredService<IOptions<HangfireOptions>>().Value;
@@ -61,12 +65,30 @@ public static class ScheduledJobsExtensions
             job => job.RunEmailDispatchAsync(),
             options.EmailDispatchCron);
 
+        // The webhook sweep has its own switch, like every other worker: when the transport is
+        // off, the job stays out of the scheduler entirely rather than ticking over an empty
+        // queue. That keeps "WebhookDispatch:Enabled = false" meaning the same thing under
+        // Hangfire as it did under the worker's own timer.
+        var webhookOptions = app.Services
+            .GetRequiredService<IOptions<WebhookDispatchOptions>>().Value;
+
+        if (webhookOptions.Enabled)
+        {
+            jobs.AddOrUpdate<ScheduledJobs>(
+                WebhookDispatchJobId,
+                job => job.RunWebhookDispatchAsync(),
+                options.WebhookDispatchCron);
+        }
+
         if (options.DashboardEnabled)
         {
-            // The dashboard is mounted for every environment, including production: it is the
-            // window onto a scheduled job that failed and the only place a pass can be re-run by
-            // hand. A deployment that must not expose it switches DashboardEnabled off.
-            app.MapHangfireDashboard(options.DashboardPath);
+            // The dashboard is the window onto a failed job and the only place a pass can be
+            // re-run by hand. Access is gated by HangfireDashboardAuthorizationFilter: Production
+            // (or any environment with DashboardUsername set) requires HTTP Basic credentials.
+            app.MapHangfireDashboard(options.DashboardPath, new DashboardOptions
+            {
+                Authorization = [new HangfireDashboardAuthorizationFilter()]
+            });
         }
 
         return app;

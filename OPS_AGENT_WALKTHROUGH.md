@@ -182,15 +182,14 @@ Query params: `search`, `role`, `page`, `pageSize`. بيرجع `PagedResponse<Us
 ```json
 {
   "policies": [
-    { "severity": "P0", "responseMinutes": 15, "resolutionMinutes": 60 },
-    { "severity": "P1", "responseMinutes": 30, "resolutionMinutes": 120 },
-    { "severity": "P2", "responseMinutes": 60, "resolutionMinutes": 240 },
-    { "severity": "P3", "responseMinutes": 120, "resolutionMinutes": 480 },
-    { "severity": "P4", "responseMinutes": 240, "resolutionMinutes": 1440 }
+    { "severity": "Critical", "responseMinutes": 15, "resolutionMinutes": 60 },
+    { "severity": "High", "responseMinutes": 30, "resolutionMinutes": 120 },
+    { "severity": "Medium", "responseMinutes": 60, "resolutionMinutes": 240 },
+    { "severity": "Low", "responseMinutes": 120, "resolutionMinutes": 480 }
   ]
 }
 ```
-`severity` يقدر يبقى: `P0`, `P1`, `P2`, `P3`, `P4`
+`severity` يقدر يبقى: `Critical`, `High`, `Medium`, `Low` (مش `P0`–`P4`)
 
 ### الخطوة 5: Incidents (أهم حاجة)
 كل حاجة هنا محتاجة صلاحيات معينة حسب الإجراء.
@@ -211,19 +210,19 @@ Query: `status`, `severity`, `serviceId`, `assignedTo`, `from`, `to`, `page`, `p
   "serviceId": "{{serviceId}}",
   "title": "Database connection pool exhausted",
   "description": "Users getting timeouts on login",
-  "severity": "P1",
+  "severity": "High",
   "correlationKey": "deploy-2026-10-27-01"
 }
 ```
 **ملاحظات:**
 - `tenantId` و`reportedBy` بيتاخدوا من التوكن
-- `severity`: `P0`-`P4`
+- `severity`: `Critical` / `High` / `Medium` / `Low`
 - `correlationKey` اختيارى
 
 احفظ `data` اللى هو `incidentId`.
 
 #### 5.3 تحديث / تعيين
-- `PUT {{baseUrl}}/api/v1/incidents/{id}` [Auth - `incidents.update`] Body: `{"title": "...", "description": "...", "severity": "P0"}`
+- `PUT {{baseUrl}}/api/v1/incidents/{id}` [Auth - `incidents.update`] Body: `{"title": "...", "description": "...", "severity": "Critical"}`
 - `POST {{baseUrl}}/api/v1/incidents/{id}/assign` [Auth - `incidents.assign`] Body: `{"assigneeId": "{{userId}}"}` (الـ`assignedBy` بيتاخد من التوكن)
 
 #### 5.4 التنقل بين الحالات (Transitions) - **مهم جداً**
@@ -324,7 +323,7 @@ Query: `status`, `severity`, `serviceId`, `assignedTo`, `from`, `to`, `page`, `p
 {
   "service": "api-gateway",
   "environment": "Production",
-  "severity": "P1",
+  "severity": "High",
   "message": "High latency detected",
   "timestamp": "2026-10-27T12:34:56+00:00"
 }
@@ -333,7 +332,7 @@ Query: `status`, `severity`, `serviceId`, `assignedTo`, `from`, `to`, `page`, `p
 - `tenantId` بيتاخد من الـAPI Key
 - `service` بيقارن بالـslug/name بتاع Service (حسب Implementation)
 - `environment`: `Production`, `Staging`, `Development`
-- `severity`: `P0`-`P4`
+- `severity`: `Critical` / `High` / `Medium` / `Low`
 - `timestamp` اختيارى غالبًا لكن يفضل تحطها
 - بيرجع **202 Accepted** لو نجح
 
@@ -357,9 +356,9 @@ Query: `status`, `severity`, `serviceId`, `assignedTo`, `from`, `to`, `page`, `p
 ```json
 {
   "preferences": [
-    { "severity": "P0", "channel": "Email", "enabled": true },
-    { "severity": "P1", "channel": "Email", "enabled": true },
-    { "severity": "P0", "channel": "InApp", "enabled": true }
+    { "severity": "Critical", "channel": "Email", "enabled": true },
+    { "severity": "High", "channel": "Email", "enabled": true },
+    { "severity": "Critical", "channel": "InApp", "enabled": true }
   ]
 }
 ```
@@ -394,7 +393,7 @@ Query: `status`, `severity`, `serviceId`, `assignedTo`, `from`, `to`, `page`, `p
 - **Postmortem**: **ماينفعش تنشر غير لما Incident يبقى Resolved/Closed**
 - **API Keys**: للـ`/events` **استخدم `X-API-Key` مش Bearer**
 - **Refresh Tokens**: single-use، لو عايز تعمل session جديد اعمل refresh مرة واحدة
-- **Enums**: حطهم Capitalized زى الموجودين (`P1`, `Production`, `Email`) أو حاول case-insensitive
+- **Enums**: حطهم Capitalized زى الموجودين (`Critical`, `Production`, `Email`) أو حاول case-insensitive
 - **Paged Responses**: `GET` اللى بيرجع قائمة غالبًا بيبقى `PagedResponse<T>` (مش `Response<List<T>>`)
 - **Validation**: لو شاف 400 شوف `errors[]` عشان يعرف ايه اللى غلط بالظبط
 
@@ -406,5 +405,6 @@ Query: `status`, `severity`, `serviceId`, `assignedTo`, `from`, `to`, `page`, `p
 - [ ] عملت `incidents` بالترتيب `create -> transition` مع صلاحيات صحيحة
 - [ ] عملت `postmortem` لو عايز (لو الـincident بقى Resolved/Closed)
 - [ ] عملت `api-key` + جربت `events` بـ `X-API-Key`
-- [ ] عملت `webhooks` لو عايز
+- [ ] عملت `webhooks` **قبل** إنشاء الحوادث (الـ deliveries بتتكتب وقت الحدث)
+- [ ] راجعت Hangfire `/jobs` (أربعة jobs منها `webhook-dispatch`)
 - [ ] راجعت `analytics/summary` و`audit-logs`

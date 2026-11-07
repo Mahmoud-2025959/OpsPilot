@@ -79,8 +79,10 @@ public sealed class OutboxProcessor : BackgroundService
     public async Task<int> DispatchPendingAsync(CancellationToken cancellationToken = default)
     {
         // A pass gets its own scope: the dispatcher runs for the process, while everything it
-        // resolves lives per unit of work.
-        using var scope = _scopes.CreateScope();
+        // resolves lives per unit of work. The scope is disposed asynchronously because the
+        // real publisher owns an AMQP channel and implements only IAsyncDisposable -- a
+        // synchronous dispose throws instead of closing the channel.
+        await using var scope = _scopes.CreateAsyncScope();
 
         var outbox = scope.ServiceProvider.GetRequiredService<IOutboxRepository>();
         var publisher = scope.ServiceProvider.GetRequiredService<IOutboxPublisher>();

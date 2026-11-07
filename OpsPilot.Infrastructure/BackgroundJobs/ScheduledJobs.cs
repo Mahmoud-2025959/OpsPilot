@@ -77,4 +77,14 @@ public sealed class ScheduledJobs
 
         return delivered;
     }
+
+    /// <summary>One webhook dispatch over the whole queue.</summary>
+    public async Task<int> RunWebhookDispatchAsync()
+    {
+        using var scope = _scopes.CreateScope();
+
+        var worker = scope.ServiceProvider.GetRequiredService<WebhookDispatchWorker>();
+
+        return await worker.DispatchPendingAsync();
+    }
 }
