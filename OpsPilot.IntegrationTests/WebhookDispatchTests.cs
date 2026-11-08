@@ -59,11 +59,16 @@ public sealed class WebhookDispatchTests(LocalDbFixture db) : IClassFixture<Loca
         await using var provider = BuildContainer(sender);
 
         var worker = BuildWorker(provider);
+        var ourDelivery = await company.Context.WebhookDeliveries
+            .Where(d => d.EndpointId == endpoint.Id)
+            .OrderByDescending(d => d.CreatedAt)
+            .FirstAsync();
+
         var delivered = await worker.DispatchPendingAsync();
 
         Assert.True(delivered >= 1);
 
-        var call = Assert.Single(sender.Sent, c => c.DeliveryId != Guid.Empty.ToString());
+        var call = Assert.Single(sender.Sent, c => c.DeliveryId == ourDelivery.Id.ToString());
 
         Assert.Equal(Url, call.Url);
         Assert.Equal(IntegrationEventTypes.IncidentCreated, call.EventType);
@@ -201,6 +206,33 @@ public sealed class WebhookDispatchTests(LocalDbFixture db) : IClassFixture<Loca
         Assert.DoesNotContain(sender.Sent, c => c.Url == Url);
     }
 
+    [Fact]
+    public async Task The_Scheduled_Webhook_Job_Delivers_A_Queued_Call()
+    {
+        // The regression this guards: with Hangfire owning the schedule, the webhook sweep must
+        // still be reachable as a scheduled pass. Resolving ScheduledJobs and calling the job body
+        // is exactly what Hangfire does per run.
+        using var company = await db.CompanyAsync();
+        var endpoint = await RegisterAsync(company, Url);
+
+        await IngestAsync(company);
+
+        var sender = new RecordingWebhookSender();
+        await using var provider = BuildContainer(sender);
+
+        using var scope = provider.CreateScope();
+        var jobs = scope.ServiceProvider.GetRequiredService<ScheduledJobs>();
+
+        var delivered = await jobs.RunWebhookDispatchAsync();
+
+        Assert.True(delivered >= 1);
+
+        var reloaded = await ReloadAsync(company, endpoint.Id);
+
+        Assert.Equal(WebhookDeliveryStatus.Delivered, reloaded.Status);
+        Assert.NotNull(reloaded.DeliveredAt);
+    }
+
     private static async Task<WebhookEndpoint> RegisterAsync(CompanyScope company, string url)
     {
         var endpoint = WebhookEndpoint.Create(
@@ -258,6 +290,7 @@ public sealed class WebhookDispatchTests(LocalDbFixture db) : IClassFixture<Loca
 
     private ServiceProvider BuildContainer(IWebhookSender sender) =>
         new ServiceCollection()
+            .AddLogging()
             .AddScoped<TenantContext>()
             .AddScoped<ICurrentTenant>(provider => provider.GetRequiredService<TenantContext>())
             .AddScoped(provider => db.CreateContext(provider.GetRequiredService<TenantContext>()))
@@ -265,6 +298,8 @@ public sealed class WebhookDispatchTests(LocalDbFixture db) : IClassFixture<Loca
             .AddScoped<ITenantDirectory, TenantDirectory>()
             .AddSingleton<ISecretProtector>(_ => Protector())
             .AddSingleton(sender)
+            .AddScoped<WebhookDispatchWorker>(provider => BuildWorker(provider))
+            .AddScoped<ScheduledJobs>()
             .BuildServiceProvider();
 
     private static AesGcmApiKeySecretProtector Protector() =>

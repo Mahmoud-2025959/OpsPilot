@@ -4,10 +4,15 @@ obj/
 buildcheck/
 build/
 *.user
+*.binlog
+msbuild.binlog
 
 # Test results and ad-hoc run logs
 TestResults/
 *.trx
+
+# Local webhook receiver output (scripts/webhook-receiver.ps1 writes it beside the repo root)
+/webhook-receiver.log
 
 # Scratch logs written while building and testing (testrun_*.txt, build_*.txt and the
 # one-off probes copied beside them). Kept in the repository root, never committed.

@@ -36,6 +36,9 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
+        services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+        services.AddHostedService<DatabaseMigratorHostedService>();
+
         services.AddScoped<ICurrentTenant, TenantContext>();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
@@ -277,7 +280,7 @@ public static class DependencyInjection
             }
         });
 
-        // The three scheduled passes. Each is a plain scoped service as well as (optionally) a
+        // The four scheduled passes. Each is a plain scoped service as well as (optionally) a
         // hosted service: the concrete registration is what lets a Hangfire recurring job resolve
         // and call a pass directly, while the hosted registration is the timer path used when
         // Hangfire is not in play. Both call the same public pass methods, so the rules live in
@@ -285,6 +288,7 @@ public static class DependencyInjection
         services.AddScoped<SlaViolationDetectionWorker>();
         services.AddScoped<OutboxProcessor>();
         services.AddScoped<EmailDispatchWorker>();
+        services.AddScoped<WebhookDispatchWorker>();
         services.AddScoped<ScheduledJobs>();
 
         var hangfireSection = configuration.GetSection(HangfireOptions.SectionName);
@@ -357,7 +361,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Wires Hangfire as the scheduler for the three recurring passes (plan, "BackgroundJobs").
+    /// Wires Hangfire as the scheduler for the four recurring passes (plan, "BackgroundJobs").
     /// </summary>
     /// <remarks>
     /// <para>

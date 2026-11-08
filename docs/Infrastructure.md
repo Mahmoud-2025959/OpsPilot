@@ -39,7 +39,7 @@ Implements the abstractions defined in the Application layer and talks to extern
 | `Redis/` | محفوظ للكاش المستقبلي — **لسه فاضي** حسب قرار الخطة (الكاش يتأجل لحد ما الأداء يطلبه) |
 | `Identity/` | المصادقة والصلاحيات (Identity / JWT والـ token management) |
 | `Notifications/` | إرسال الإشعارات وتنفيذ الـ Notification abstractions |
-| `BackgroundJobs/` | الوظائف المجدولة (`SlaViolationDetectionWorker`, `OutboxProcessor`, `EmailDispatchWorker`) + `ScheduledJobs` لإطار Hangfire |
+| `BackgroundJobs/` | الوظائف المجدولة (`SlaViolationDetectionWorker`, `OutboxProcessor`, `EmailDispatchWorker`, `WebhookDispatchWorker`) + `ScheduledJobs` لإطار Hangfire |
 | `Security/` | معالجة الـ API keys ومصادقتها، وتشفير النسخة المحفوظة من السر (`AesGcmApiKeySecretProtector`) |
 | `Services/` | تنفيذات الخدمات (مثل `MailKitEmailSender`, `LoggingOutboxPublisher`) |
 
@@ -50,4 +50,9 @@ Implements the abstractions defined in the Application layer and talks to extern
 - ممنوع استيراد `OpsPilot.API` — تنقطع دايرة المرجع مع الـ Web layer.
 - **Redis**: المرجع موجود لكن مش مستخدم — قرار الخطة إن الكاش يتأجل لحد ما قياس الأداء يثبته.
 - **RabbitMQ**: الناشر الحقيقي بيتسجّل بس لما `RabbitMq:Enabled=true`، وغير كده الـ `LoggingOutboxPublisher` هو اللي شغال.
-- **Hangfire**: بيتسجّل بس لما `Hangfire:Enabled=true`، وغير كده الـ workers بتشتغل بمؤقتاتها الخاصة.
+- **RabbitMQ محليًا (بدون Docker)**: فيه سكربتات محمولة تحت `scripts/` (Erlang + RabbitMQ في `%USERPROFILE%\Tools`) لتشغيل البروكر على Windows من غير صلاحيات أدمن؛ راجع `scripts/README.md`. لو Docker Desktop متاح، `docker compose up -d rabbitmq` هو المسار المفضّل.
+- **Hangfire**: بيتسجّل بس لما `Hangfire:Enabled=true`، وغير كده الـ workers بتشتغل بمؤقتاتها الخاصة. سكيما `HangFire` بتتعمل تلقائيًا في نفس قاعدة بيانات التطبيق (`PrepareSchemaIfNecessary`)، والـ dashboard على `/jobs`. الوظائف المتكررة أربعة: `sla-violation-sweep`, `outbox-drain`, `email-dispatch`, `webhook-dispatch` — وكل واحدة بتستدعي نفس pass method اللي بيستدعيه مؤقت الـ worker. في Production الـ dashboard بيتطلب HTTP Basic (`Hangfire:DashboardUsername` / `DashboardPassword`)؛ من غير اسم مستخدم الطلب بيترفض. محليًا (Development واسم فاضي) الـ dashboard مفتوح.
+- **Webhook dispatch**: `WebhookDispatchWorker` مسجّل `AddScoped` دايمًا عشان Hangfire يقدر يعمله resolve، و`AddHostedService` بس لما `Hangfire:Enabled=false` — ممنوع الاتنين مع بعض.
+- **SMTP**: MailKit. محليًا `Smtp:Enabled` في Development بيوجّه على `localhost:2525` (smtp4dev). مع Docker: profile `mail` في compose (UI على 3000). من غير Docker: `scripts\start-smtp4dev.ps1` بيشغّل نسخة محمولة (UI على 5001). `Enabled=false` ما بيحرّقش المحاولات. إعادة صفوف `Failed`: `scripts/reset-failed-emails.sql`.
+- **نشر Docker**: `Dockerfile` متعدد المراحل (`net10.0`، مستخدم غير root، منفذ 8080). خدمة `api` في `docker-compose.yml` تعتمد على sqlserver و rabbitmq، وتعمل migrate عند الإقلاع (`Database:MigrateOnStartup`). Healthcheck على `/health/ready`. أسرار JWT/التشفير/الـ dashboard من `.env`.
+- **Outbox**: الـ scope في `OutboxProcessor` لازم يتقفل بـ `CreateAsyncScope()` لأن ناشر RabbitMQ بيعتمد على `IAsyncDisposable` فقط؛ القفل المتزامن كان بيرمي استثناء ويفشل وظيفة `outbox-drain`.

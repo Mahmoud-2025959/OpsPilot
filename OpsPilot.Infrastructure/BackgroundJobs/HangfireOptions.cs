@@ -51,6 +51,22 @@ public sealed class HangfireOptions
     /// <summary>Cron for the email dispatch. Default: every thirty seconds.</summary>
     public string EmailDispatchCron { get; set; } = "*/30 * * * * *";
 
+    /// <summary>Cron for the webhook dispatch. Default: every fifteen seconds, matching the worker.</summary>
+    public string WebhookDispatchCron { get; set; } = "*/15 * * * * *";
+
     /// <summary>How many times Hangfire itself re-runs a job whose body threw.</summary>
     public int MaxAutomaticRetries { get; set; } = 3;
+
+    /// <summary>
+    /// Basic-auth user for the dashboard. When empty, the dashboard is reachable only outside
+    /// Production (local Development). A deployment must set this together with
+    /// <see cref="DashboardPassword"/>.
+    /// </summary>
+    public string DashboardUsername { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Basic-auth password for the dashboard. Bound from the environment or user-secrets, never
+    /// committed as a real secret.
+    /// </summary>
+    public string DashboardPassword { get; set; } = string.Empty;
 }
