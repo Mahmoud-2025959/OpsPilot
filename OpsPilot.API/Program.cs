@@ -102,6 +102,12 @@ try
     // Hangfire:Enabled is set, in which case the workers keep their own timers.
     builder.Services.AddScheduledJobs(builder.Configuration);
 
+    // The recurring jobs are written to storage by a hosted service rather than here, because
+    // that write needs the database - which the migrator creates at host start, after this line
+    // has run. Registering it now only fixes its start order: after the migrator and the
+    // Hangfire server.
+    builder.Services.AddScheduledJobsRegistration(builder.Configuration);
+
     // The plan's ingestion limit (429 past a fixed window per key) is an endpoint policy rather
     // than a global one; see IngestionRateLimitingExtensions for where it sits in the pipeline.
     builder.Services.AddIngestionRateLimiting(builder.Configuration);
@@ -175,10 +181,11 @@ try
 
     app.MapControllers();
 
-    // Registers the recurring jobs and mounts the dashboard. A no-op when Hangfire is off, so
-    // this is always safe to call. It sits here rather than earlier because a recurring job is
-    // written to storage and needs the built container.
-    app.UseScheduledJobs();
+    // Mounts the Hangfire dashboard. The recurring jobs themselves are registered by
+    // ScheduledJobsRegistrationHostedService once the host starts - after the migrator has
+    // created the schema - because writing them here ran before the database existed. A no-op
+    // when Hangfire is off.
+    app.UseScheduledJobsDashboard();
 
     // The hub sits behind the same authentication and tenant resolution as the controllers,
     // which is why it is mapped after both -- a connection is a request like any other until
@@ -201,8 +208,16 @@ catch (HostAbortedException)
 }
 catch (Exception exception)
 {
+    // stderr as well as Serilog: a test host and a CI job capture it even when the console
+    // sink is not part of the visible output, and the exception itself is the diagnosis.
+    Console.Error.WriteLine(exception);
+
     Log.Fatal(exception, "OpsPilot.API terminated unexpectedly");
-    return 1;
+
+    // Rethrow instead of returning an exit code. WebApplicationFactory can only surface the
+    // real failure if the entry point throws; swallowing it produces the opaque
+    // "The entry point exited without ever building an IHost" message instead.
+    throw;
 }
 finally
 {

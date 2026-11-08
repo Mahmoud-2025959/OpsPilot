@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentValidation;
+using Microsoft.AspNetCore.Hosting;
 using OpsPilot.Contracts.Wrappers;
 using OpsPilot.Domain.Exceptions;
 
@@ -11,11 +12,16 @@ public sealed class ExceptionHandlingMiddleware
 
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+    private readonly bool _includeDetails;
 
-    public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+    public ExceptionHandlingMiddleware(
+        RequestDelegate next,
+        ILogger<ExceptionHandlingMiddleware> logger,
+        IWebHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
+        _includeDetails = environment.IsDevelopment();
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -36,6 +42,15 @@ public sealed class ExceptionHandlingMiddleware
             if (statusCode >= StatusCodes.Status500InternalServerError)
             {
                 _logger.LogError(ex, "Unhandled exception during request processing.");
+
+                // A 500 has no useful message of its own: the generic sentence says only that
+                // something broke. In Development the exception's own text is what a developer
+                // needs - and what a test asserting on the body can see. In Production it stays
+                // hidden, because a stack trace or a SQL error in a response leaks internals.
+                if (_includeDetails)
+                {
+                    errors = [ex.ToString()];
+                }
             }
             else
             {

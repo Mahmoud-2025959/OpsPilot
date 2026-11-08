@@ -1,24 +1,22 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace OpsPilot.IntegrationTests;
 
-public class SmokeTests : IClassFixture<WebApplicationFactory<Program>>
+/// <summary>
+/// Checks that the real pipeline is wired end to end: routing, OpenAPI and the Swagger
+/// security schemes. The host is the same one the rest of the suite builds, so a smoke
+/// test can never fail - or pass - for a reason another test would not see.
+/// </summary>
+public sealed class SmokeTests(LocalDbFixture db) : IClassFixture<LocalDbFixture>
 {
-    private readonly WebApplicationFactory<Program> _factory;
-
-    public SmokeTests(WebApplicationFactory<Program> factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task Root_Returns_NotFound()
     {
-        var client = _factory.CreateClient();
+        await using var factory = new IntegrationApiFactory(db);
+
+        var client = factory.CreateClient();
 
         var response = await client.GetAsync("/");
 
@@ -28,8 +26,9 @@ public class SmokeTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task OpenApi_Is_Served_In_Development()
     {
-        var client = _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
-            .CreateClient();
+        await using var factory = new IntegrationApiFactory(db);
+
+        var client = factory.CreateClient();
 
         var response = await client.GetAsync("/openapi/v1.json");
 
@@ -39,14 +38,15 @@ public class SmokeTests : IClassFixture<WebApplicationFactory<Program>>
 
     /// <summary>
     /// Ingestion authenticates with <c>X-API-Key</c> rather than a token, so its buttons in
-    /// Swagger UI are dead until the document publishes a scheme for that header — this guards
+    /// Swagger UI are dead until the document publishes a scheme for that header - this guards
     /// the difference between "the endpoint is documented" and "the endpoint can be called".
     /// </summary>
     [Fact]
     public async Task Swagger_Publishes_The_Api_Key_Scheme_For_Ingestion()
     {
-        var client = _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
-            .CreateClient();
+        await using var factory = new IntegrationApiFactory(db);
+
+        var client = factory.CreateClient();
 
         var response = await client.GetAsync("/swagger/v1/swagger.json");
 
@@ -81,8 +81,9 @@ public class SmokeTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Swagger_Publishes_The_Bearer_Scheme_And_Only_V1_Routes()
     {
-        var client = _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
-            .CreateClient();
+        await using var factory = new IntegrationApiFactory(db);
+
+        var client = factory.CreateClient();
 
         var response = await client.GetAsync("/swagger/v1/swagger.json");
 
