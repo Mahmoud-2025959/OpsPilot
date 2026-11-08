@@ -10,6 +10,7 @@ using OpsPilot.API.RateLimiting;
 using OpsPilot.API.Realtime;
 using OpsPilot.API.Scheduling;
 using OpsPilot.Infrastructure;
+using OpsPilot.Infrastructure.BackgroundJobs;
 using Serilog;
 using System.Text.Json.Serialization;
 
@@ -122,6 +123,13 @@ try
         .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
     var app = builder.Build();
+
+    // Migrate before the host starts. The host builds every hosted service before it starts any
+    // of them, and a service can touch the schema from its constructor: Hangfire prepares its own
+    // schema the moment its storage is created. On an empty database that construction would fail
+    // before DatabaseMigratorHostedService ever ran, so the migration happens here instead. The
+    // hosted service is kept as an idempotent second call.
+    await DatabaseMigratorHostedService.MigrateIfConfiguredAsync(app.Services, CancellationToken.None);
 
     // Configure the HTTP request pipeline.
     app.UseSerilogRequestLogging();
