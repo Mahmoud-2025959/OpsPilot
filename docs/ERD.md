@@ -237,6 +237,43 @@ erDiagram
         guid CreatedBy FK
         datetime CreatedAt
     }
+    OutboxMessage {
+        guid Id PK
+        guid TenantId
+        string Type
+        string Payload
+        string State
+        int Attempts
+        string Error
+        datetime ProcessedAt
+        datetime CreatedAt
+    }
+    WebhookDelivery {
+        guid Id PK
+        guid TenantId FK
+        guid EndpointId FK
+        string EventType
+        string Payload
+        string Status
+        int Attempts
+        string LastError
+        datetime DeliveredAt
+        datetime CreatedAt
+    }
+    InboxMessage {
+        string MessageId PK
+        string Consumer PK
+        datetime ProcessedAt
+    }
+    AiSuggestion {
+        guid Id PK
+        guid TenantId FK
+        guid IncidentId FK
+        string Kind
+        string Content
+        string Model
+        datetime AcceptedAt
+    }
 ```
 
 جداول بنية تحتية ظاهرة في الرسمة: `OutboxMessage`, `WebhookDelivery`, `AiSuggestion`. `InboxMessage` جدول عالمي بدون `TenantId` (idempotency للـ consumer).

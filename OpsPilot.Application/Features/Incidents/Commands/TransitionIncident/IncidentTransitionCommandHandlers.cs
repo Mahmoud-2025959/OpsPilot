@@ -3,6 +3,7 @@ using MediatR;
 using OpsPilot.Application.Abstractions;
 using OpsPilot.Application.Common.Constants;
 using OpsPilot.Application.Common.Mappings;
+using OpsPilot.Application.Common.Messages;
 using OpsPilot.Contracts.Incidents;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Enums;
@@ -50,7 +51,10 @@ internal static class IncidentTransition
             payload: BuildPayload(actorId, note));
 
         await repository.UpdateAsync(incident, cancellationToken);
-        await repository.AddEventAsync(evt, cancellationToken);
+        await repository.AddEventAsync(
+            evt,
+            IncidentAnnouncements.Added(evt, incident),
+            cancellationToken);
 
         // UC-3 step 4: every move along the state machine lands in the trail as well as the
         // timeline, with the status it came from and the one it went to. The timeline says the

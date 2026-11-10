@@ -1,5 +1,6 @@
 using MediatR;
 using OpsPilot.Application.Abstractions;
+using OpsPilot.Application.Common.Messages;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Enums;
 using OpsPilot.Domain.Exceptions;
@@ -27,7 +28,10 @@ public sealed class AddIncidentCommentCommandHandler : IRequestHandler<AddIncide
             occurredAt: now,
             payload: request.AuthorId.ToString());
 
-        await _repository.AddCommentAsync(comment, cancellationToken);
-        await _repository.AddEventAsync(evt, cancellationToken);
+        await _repository.AddCommentAsync(
+            comment,
+            evt,
+            IncidentAnnouncements.Added(evt, incident),
+            cancellationToken);
     }
 }

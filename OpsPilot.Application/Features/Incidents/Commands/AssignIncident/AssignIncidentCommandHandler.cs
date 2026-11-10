@@ -1,6 +1,7 @@
 using MediatR;
 using OpsPilot.Application.Abstractions;
 using OpsPilot.Application.Common.Constants;
+using OpsPilot.Application.Common.Messages;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Enums;
 using OpsPilot.Domain.Exceptions;
@@ -52,13 +53,19 @@ public sealed class AssignIncidentCommandHandler : IRequestHandler<AssignInciden
             payload: request.AssigneeId.ToString());
 
         await _repository.UpdateAsync(incident, cancellationToken);
-        await _repository.AddEventAsync(evt, cancellationToken);
 
         // Re-assigning an incident to the same person changes nothing, so it is not a sensitive
         // action and leaves no trace (FR-18) -- and it does not notify the assignee a second
-        // time either, for the same reason.
+        // time either, for the same reason. The timeline entry is still written: the call did
+        // happen, even though it changed nothing. The webhook follows the same rule as the
+        // audit trail and the notification, so a no-op re-assignment announces nothing.
         if (previousAssignee != request.AssigneeId)
         {
+            await _repository.AddEventAsync(
+                evt,
+                IncidentAnnouncements.Added(evt, incident),
+                cancellationToken);
+
             await _audit.WriteAsync(
                 new AuditEntry(
                     AuditActions.IncidentAssigned,
@@ -76,6 +83,10 @@ public sealed class AssignIncidentCommandHandler : IRequestHandler<AssignInciden
                 body: $"You have been assigned incident '{incident.Title}'.",
                 incident.Id,
                 cancellationToken);
+        }
+        else
+        {
+            await _repository.AddEventAsync(evt, cancellationToken);
         }
     }
 }

@@ -1,7 +1,7 @@
 using MediatR;
-using System.Text.Json;
 using OpsPilot.Application.Abstractions;
 using OpsPilot.Application.Common.Constants;
+using OpsPilot.Application.Common.Messages;
 using OpsPilot.Contracts.Events;
 using OpsPilot.Domain.Common;
 using OpsPilot.Domain.Entities;
@@ -72,7 +72,7 @@ public sealed class IngestEventCommandHandler : IRequestHandler<IngestEventComma
             await _incidents.UpdateAsync(open, cancellationToken);
             await _incidents.AddEventAsync(
                 repeat,
-                Announce(IntegrationEventTypes.IncidentEventAdded, repeat, open),
+                IncidentAnnouncements.Added(repeat, open),
                 cancellationToken);
 
             return new EventIngestResultDto(repeat.Id, open.Id, Correlated: true);
@@ -109,26 +109,11 @@ public sealed class IngestEventCommandHandler : IRequestHandler<IngestEventComma
 
         await _incidents.AddEventAsync(
             first,
-            Announce(IntegrationEventTypes.IncidentCreated, first, incident),
+            IncidentAnnouncements.Created(first, incident),
             cancellationToken);
 
         return new EventIngestResultDto(first.Id, incident.Id, Correlated: false);
     }
-
-    /// <summary>
-    /// Stages the integration message for an entry in the same save as the entry itself
-    /// (plan, UC-06 step 7).
-    /// </summary>
-    /// <remarks>
-    /// The payload names the two ids a consumer needs and nothing else: the body of the event is
-    /// readable from the timeline, and copying it here would create a second version of it to
-    /// keep in step.
-    /// </remarks>
-    private static OutboxMessage Announce(string type, IncidentEvent entry, Incident incident) =>
-        OutboxMessage.Create(
-            type,
-            JsonSerializer.Serialize(new { eventId = entry.Id, incidentId = incident.Id }),
-            incident.TenantId);
 
     private static string TrimToTitle(string message) =>
         message.Length <= MaxTitleLength ? message : message[..MaxTitleLength];
