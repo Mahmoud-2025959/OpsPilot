@@ -7,4 +7,5 @@ public sealed record UserDto(
     string DisplayName,
     bool IsActive,
     DateTimeOffset? LastLoginAt,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<string> Permissions);

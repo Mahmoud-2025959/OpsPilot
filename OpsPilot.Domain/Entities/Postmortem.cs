@@ -60,12 +60,30 @@ public sealed class Postmortem : TenantOwnedEntity
 
     public void RecordRootCause(string? rootCause)
     {
-        RootCause = rootCause?.Trim();
+        EnsureEditable("change its root cause");
+        RootCause = Normalize(rootCause);
     }
 
     public void RecordActionItems(string? actionItems)
     {
-        ActionItems = actionItems?.Trim();
+        EnsureEditable("change its action items");
+        ActionItems = Normalize(actionItems);
+    }
+
+    /// <summary>
+    /// Replaces the whole written body. Only a draft may be rewritten: once the retrospective
+    /// has been sent for review, the text under review must be the text that gets published.
+    /// </summary>
+    public void UpdateContent(string title, string summary, string? rootCause, string? actionItems)
+    {
+        EnsureEditable("be edited");
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentException.ThrowIfNullOrWhiteSpace(summary);
+
+        Title = title.Trim();
+        Summary = summary.Trim();
+        RootCause = Normalize(rootCause);
+        ActionItems = Normalize(actionItems);
     }
 
     public void MoveToReview()
@@ -79,6 +97,21 @@ public sealed class Postmortem : TenantOwnedEntity
         Status = PostmortemStatus.InReview;
     }
 
+    /// <summary>
+    /// Sends the retrospective back to its author (review rejected). The text is left exactly
+    /// as it was so the change asked for is made against the version that was reviewed.
+    /// </summary>
+    public void ReturnToDraft()
+    {
+        if (Status is not PostmortemStatus.InReview)
+        {
+            throw new InvalidStateTransitionException(
+                $"Cannot return postmortem from status '{Status}' to '{PostmortemStatus.Draft}'.");
+        }
+
+        Status = PostmortemStatus.Draft;
+    }
+
     public void Publish(DateTimeOffset at)
     {
         if (Status is not PostmortemStatus.InReview)
@@ -90,4 +123,16 @@ public sealed class Postmortem : TenantOwnedEntity
         Status = PostmortemStatus.Published;
         PublishedAt = at;
     }
+
+    private void EnsureEditable(string operation)
+    {
+        if (Status is not PostmortemStatus.Draft)
+        {
+            throw new InvalidStateTransitionException(
+                $"A postmortem in status '{Status}' cannot {operation}.");
+        }
+    }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

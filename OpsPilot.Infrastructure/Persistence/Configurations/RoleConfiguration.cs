@@ -17,8 +17,12 @@ public sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
         builder.Property(r => r.Description).HasMaxLength(500);
         builder.Property(r => r.IsSystem).IsRequired();
 
-        // Role names are unique per company, not globally (ERD §3).
-        builder.HasIndex(r => new { r.TenantId, r.Name }).IsUnique();
+        // ASP.NET Identity declares RoleNameIndex as unique on NormalizedName alone, which
+        // makes role names globally unique -- impossible once every company has its own
+        // "Viewer". Demote it to a plain lookup index and enforce uniqueness per company
+        // (ERD §3) on the normalized value instead, so "Viewer" and "viewer" collide.
+        builder.HasIndex(r => r.NormalizedName).HasDatabaseName("RoleNameIndex").IsUnique(false);
+        builder.HasIndex(r => new { r.TenantId, r.NormalizedName }).IsUnique();
         builder.HasIndex(r => new { r.TenantId, r.IsSystem });
 
         builder.HasAlternateKey(r => new { r.TenantId, r.Id });

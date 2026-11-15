@@ -1,6 +1,7 @@
 using MediatR;
 using OpsPilot.Application.Abstractions;
 using OpsPilot.Application.Common.Constants;
+using OpsPilot.Application.Features.Roles;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Exceptions;
 
@@ -10,11 +11,16 @@ public sealed class CreateUserCommandHandler : IRequestHandler<CreateUserCommand
 {
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly RoleGrantGuard _grantGuard;
 
-    public CreateUserCommandHandler(IUserRepository userRepository, IPasswordHasher passwordHasher)
+    public CreateUserCommandHandler(
+        IUserRepository userRepository,
+        IPasswordHasher passwordHasher,
+        RoleGrantGuard grantGuard)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
+        _grantGuard = grantGuard;
     }
 
     public async Task<Guid> Handle(CreateUserCommand request, CancellationToken cancellationToken)
@@ -56,6 +62,10 @@ public sealed class CreateUserCommandHandler : IRequestHandler<CreateUserCommand
         {
             throw new DomainException(ExceptionMessages.RolesDoNotExist(missing));
         }
+
+        // ERD §3: creating an account is another way to hand out the Owner role, so it is
+        // checked like any other assignment.
+        await _grantGuard.EnsureRolesAssignableAsync(user.TenantId, found, cancellationToken);
 
         foreach (var role in found)
         {

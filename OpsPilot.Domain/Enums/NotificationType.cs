@@ -8,6 +8,7 @@ public enum NotificationType
     IncidentResolved,
     IncidentClosed,
     SlaViolation,
+    SlaViolationEscalated,
     SlaBreachCritical,
     PostmortemPublished,
     DailyDigest

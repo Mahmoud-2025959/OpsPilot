@@ -18,7 +18,7 @@ public sealed class GetAllUsersQueryHandler : IRequestHandler<GetAllUsersQuery, 
     public async Task<PagedResponse<UserDto>> Handle(GetAllUsersQuery request, CancellationToken cancellationToken)
     {
         var page = request.Page < 1 ? 1 : request.Page;
-        var pageSize = request.PageSize is < 1 or > 200 ? 20 : request.PageSize;
+        var pageSize = request.PageSize is < 1 or > 100 ? 20 : request.PageSize;
 
         var (items, totalCount) = await _userRepository.GetPagedAsync(
             request.Search,

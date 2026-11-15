@@ -10,11 +10,6 @@ Contains DTOs and messaging contracts shared across layers so API / Application 
 
 ## المراجع الحالية / Current References
 
-- لا يوجد أي `ProjectReference` حالياً.
-- No `ProjectReference` currently.
-
-## المراجع المقترحة / Recommended References
-
 - **لا يسترجع أي مشروع** — بتعتمد عليها Application و API و Infrastructure، فممنوع تسترجع غيره.
 - **References nothing** — other layers depend on it; it must not depend on others.
 
@@ -22,7 +17,7 @@ Contains DTOs and messaging contracts shared across layers so API / Application 
 
 | الحزمة | الإصدار | ملاحظات |
 |---|---|---|
-| — | — | لا يوجد أي `PackageReference` حالياً. No packages currently. |
+| `System.Security.Cryptography.Pkcs` | `9.0.21` | تبعية |
 
 ## المحتوى / Contents
 
@@ -30,7 +25,7 @@ Contains DTOs and messaging contracts shared across layers so API / Application 
 |---|---|
 | `DTOs / Requests` | الـ payloads اللي بتتبعت (إنشاء/تعديل/استعلام) |
 | `DTOs / Responses` | الـ payloads اللي بترجع (نتائج الـ API) |
-| Messaging contracts | رسائل الحداث الخاصة بالـ RabbitMQ |
+| Messaging contracts | أنواع أحداث التكامل اللي بتتبعت على الـ Outbox (وRabbitMQ لما يكون مفعّلًا) |
 
 ## ملاحظات إضافية / Additional Notes
 

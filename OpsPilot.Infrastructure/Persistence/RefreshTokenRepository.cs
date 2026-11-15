@@ -20,8 +20,12 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
 
     public Task<RefreshToken?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
     {
+        // Refresh happens before a bearer exists, so no tenant can be resolved yet. The hash
+        // is globally unique (it is a SHA-256 of 64 random bytes), so cross-tenant lookup is
+        // safe and is the only way to bootstrap the tenant for the rest of the flow.
         return _context.RefreshTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == tokenHash, cancellationToken);
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => !t.IsDeleted && t.TokenHash == tokenHash, cancellationToken);
     }
 
     public Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default)
@@ -30,10 +34,37 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
         return Task.CompletedTask;
     }
 
+    public async Task<bool> TryConsumeAsync(
+        Guid tokenId,
+        Guid replacementTokenId,
+        DateTimeOffset consumedAt,
+        CancellationToken cancellationToken = default)
+    {
+        // One conditional UPDATE decides the winner inside the database. The WHERE clause makes
+        // the check and the write a single atomic step, so of two concurrent refreshes exactly
+        // one affects a row; the loser observes zero and is treated as a replay. This is done
+        // with ExecuteUpdate rather than load-then-save because the latter would re-read the
+        // row and re-introduce the race it is meant to close.
+        var affected = await _context.RefreshTokens
+            .IgnoreQueryFilters()
+            .Where(t => t.Id == tokenId && !t.IsUsed && !t.IsRevoked && !t.IsDeleted)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(t => t.IsUsed, true)
+                    .SetProperty(t => t.ReplacedByTokenId, replacementTokenId)
+                    .SetProperty(t => t.UpdatedAt, consumedAt),
+                cancellationToken);
+
+        return affected == 1;
+    }
+
     public async Task RevokeAllForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        // Reuse detection is a security sweep keyed by a globally unique user id; it must see
+        // the whole chain even though the caller is still anonymous (no tenant resolved yet).
         var tokens = await _context.RefreshTokens
-            .Where(t => t.UserId == userId && !t.IsRevoked)
+            .IgnoreQueryFilters()
+            .Where(t => !t.IsDeleted && t.UserId == userId && !t.IsRevoked)
             .ToListAsync(cancellationToken);
 
         foreach (var token in tokens)

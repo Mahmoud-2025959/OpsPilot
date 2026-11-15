@@ -125,6 +125,23 @@ public sealed class Incident : TenantOwnedEntity
         AssignedTo = null;
     }
 
+    /// <summary>
+    /// Edits the mutable, human-facing fields of an incident (ERD §3, "تعديل العنوان/الوصف/الخطورة").
+    /// </summary>
+    /// <remarks>
+    /// Changing the severity does not recompute the SLA deadlines here; the caller re-applies
+    /// the policy for the new severity, because only the caller knows which policy that is.
+    /// </remarks>
+    public void UpdateDetails(string title, string description, Severity severity)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+
+        Title = title.Trim();
+        Description = description.Trim();
+        Severity = severity;
+    }
+
     /// <summary>Attaches (or replaces) the SLA policy and recomputes both deadlines.</summary>
     public void ApplySlaPolicy(Guid slaPolicyId, TimeSpan response, TimeSpan resolution)
     {

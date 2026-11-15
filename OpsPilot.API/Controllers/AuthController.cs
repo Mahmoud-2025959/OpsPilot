@@ -1,22 +1,27 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OpsPilot.Application.Features.Auth.Commands.ChangePassword;
 using OpsPilot.Application.Features.Auth.Commands.Login;
 using OpsPilot.Application.Features.Auth.Commands.Logout;
 using OpsPilot.Application.Features.Auth.Commands.RefreshToken;
-using OpsPilot.Application.Features.Auth.Commands.Register;
+using OpsPilot.Application.Features.Auth.Commands.RegisterTenant;
 using OpsPilot.Contracts.Auth;
 using OpsPilot.Contracts.Wrappers;
 
 namespace OpsPilot.API.Controllers;
 
-[Route("api/auth")]
+// The versioned prefix is the contract from the plan, and it is the only surface: there are no
+// unversioned aliases anywhere, so a route is reachable at exactly one address.
+[Route("api/v1/auth")]
 public sealed class AuthController : BaseController
 {
-    [HttpPost("register")]
+    /// <summary>
+    /// Self-serve sign-up. Creates the company, seeds its roles/permissions/SLA policies and
+    /// returns the new Owner signed in.
+    /// </summary>
+    [HttpPost("register-tenant")]
     [AllowAnonymous]
-    public async Task<ActionResult<Response<AuthResponseDto>>> Register([FromBody] RegisterCommand command)
+    public async Task<ActionResult<Response<AuthResponseDto>>> RegisterTenant([FromBody] RegisterTenantCommand command)
     {
         var result = await Mediator.Send(command);
         return Ok(Success(result, BusinessCode.Created));
@@ -62,10 +67,5 @@ public sealed class AuthController : BaseController
         command.UserId = userId;
         await Mediator.Send(command);
         return Ok(Success<object?>(null));
-    }
-
-    private bool TryGetUserId(out Guid userId)
-    {
-        return Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
     }
 }

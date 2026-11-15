@@ -50,6 +50,22 @@ public sealed class OutboxMessage : TenantOwnedEntity
         Error = null;
     }
 
+    /// <summary>
+    /// Notes a publish that failed but may still be retried, leaving the row in the queue.
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from <see cref="MarkFailed"/> because "tried once and it did not go" and
+    /// "tried enough" deserve different answers: the first stays in the queue, the second waits
+    /// for someone to look at it.
+    /// </remarks>
+    public void RecordFailedAttempt(string error)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+
+        Attempts++;
+        Error = error.Trim();
+    }
+
     public void MarkFailed(string error)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(error);

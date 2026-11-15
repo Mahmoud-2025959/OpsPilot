@@ -48,6 +48,12 @@ public sealed class Notification : TenantOwnedEntity
 
     public DateTimeOffset? ReadAt { get; private set; }
 
+    /// <summary>How many times a delivery was attempted before this row settled.</summary>
+    public int Attempts { get; private set; }
+
+    /// <summary>Why the last attempt failed, kept so a queued row is never a silent one.</summary>
+    public string? LastError { get; private set; }
+
     public bool IsRead => ReadAt is not null;
 
     public static Notification Create(
@@ -82,15 +88,34 @@ public sealed class Notification : TenantOwnedEntity
 
         Status = NotificationStatus.Sent;
         SentAt = at;
+
+        // The row keeps its attempt count - it shows the delivery was not smooth - but the
+        // error is cleared because it no longer describes this row's state. Mirrors how the
+        // outbox treats a message that finally went out.
+        LastError = null;
     }
 
-    public void MarkFailed()
+    /// <summary>Notes a failed delivery and keeps the row queued for the next pass.</summary>
+    public void RecordFailedAttempt(string error)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+
+        Attempts++;
+        LastError = error.Trim();
+    }
+
+    /// <summary>Parks the row: this address will not be tried again without a human's say-so.</summary>
+    public void MarkFailed(string error)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+
         if (Status is NotificationStatus.Sent)
         {
             throw new InvalidStateTransitionException("A sent notification cannot be marked as failed.");
         }
 
+        Attempts++;
+        LastError = error.Trim();
         Status = NotificationStatus.Failed;
     }
 

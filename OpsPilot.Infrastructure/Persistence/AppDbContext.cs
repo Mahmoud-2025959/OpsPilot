@@ -56,6 +56,8 @@ public sealed class AppDbContext : IdentityDbContext<User, Role, Guid>
 
     public DbSet<WebhookEndpoint> WebhookEndpoints => Set<WebhookEndpoint>();
 
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+
     public DbSet<AiSuggestion> AiSuggestions => Set<AiSuggestion>();
 
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();

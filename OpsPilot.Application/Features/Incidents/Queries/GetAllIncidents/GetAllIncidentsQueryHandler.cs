@@ -22,16 +22,18 @@ public sealed class GetAllIncidentsQueryHandler
         CancellationToken cancellationToken)
     {
         var page = request.Page < 1 ? 1 : request.Page;
-        var pageSize = request.PageSize is < 1 or > 200 ? 20 : request.PageSize;
+        var pageSize = request.PageSize is < 1 or > 100 ? 20 : request.PageSize;
 
         IncidentStatus? status = Enum.TryParse<IncidentStatus>(request.Status, ignoreCase: true, out var s) ? s : null;
         Severity? severity = Enum.TryParse<Severity>(request.Severity, ignoreCase: true, out var sv) ? sv : null;
 
         var (items, totalCount) = await _repository.GetPagedAsync(
-            request.TenantId,
             status,
             severity,
             request.ServiceId,
+            request.AssignedTo,
+            request.From,
+            request.To,
             page,
             pageSize,
             cancellationToken);
