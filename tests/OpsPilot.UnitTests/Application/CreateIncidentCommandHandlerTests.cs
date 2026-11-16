@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Moq;
 using OpsPilot.Application.Abstractions;
+using OpsPilot.Application.Common.Constants;
 using OpsPilot.Application.Features.Incidents.Commands;
 using OpsPilot.Domain.Entities;
 using OpsPilot.Domain.Enums;
@@ -40,7 +41,11 @@ public class CreateIncidentCommandHandlerTests
     {
         var expectedId = Guid.NewGuid();
         var repository = new Mock<IIncidentRepository>();
-        repository.Setup(r => r.AddAsync(It.IsAny<Incident>(), It.IsAny<CancellationToken>()))
+        repository.Setup(r => r.AddWithEventAsync(
+                It.IsAny<Incident>(),
+                It.IsAny<IncidentEvent>(),
+                It.IsAny<OutboxMessage>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedId);
         var handler = HandlerFor(repository, KnownService());
         var command = new CreateIncidentCommand(
@@ -49,13 +54,21 @@ public class CreateIncidentCommandHandlerTests
         var id = await handler.Handle(command, CancellationToken.None);
 
         Assert.Equal(expectedId, id);
-        repository.Verify(r => r.AddAsync(It.Is<Incident>(i =>
-            i.Id != Guid.Empty &&
-            i.TenantId == TenantId &&
-            i.ServiceId == ServiceId &&
-            i.Title == "API is down" &&
-            i.Severity == Severity.Critical &&
-            i.Status == IncidentStatus.Open), It.IsAny<CancellationToken>()), Times.Once);
+        repository.Verify(r => r.AddWithEventAsync(
+            It.Is<Incident>(i =>
+                i.Id != Guid.Empty &&
+                i.TenantId == TenantId &&
+                i.ServiceId == ServiceId &&
+                i.Title == "API is down" &&
+                i.Severity == Severity.Critical &&
+                i.Status == IncidentStatus.Open),
+            It.Is<IncidentEvent>(e =>
+                e.Type == IncidentEventType.Created &&
+                e.IncidentId != Guid.Empty),
+            It.Is<OutboxMessage>(m =>
+                m.Type == IntegrationEventTypes.IncidentCreated &&
+                m.TenantId == TenantId),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -69,7 +82,10 @@ public class CreateIncidentCommandHandlerTests
 
         await handler.Handle(command, CancellationToken.None);
 
-        repository.Verify(r => r.AddAsync(It.Is<Incident>(i => i.CorrelationKey == "corr-123"),
+        repository.Verify(r => r.AddWithEventAsync(
+            It.Is<Incident>(i => i.CorrelationKey == "corr-123"),
+            It.IsAny<IncidentEvent>(),
+            It.IsAny<OutboxMessage>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -87,7 +103,11 @@ public class CreateIncidentCommandHandlerTests
             () => handler.Handle(command, CancellationToken.None));
 
         repository.Verify(
-            r => r.AddAsync(It.IsAny<Incident>(), It.IsAny<CancellationToken>()),
+            r => r.AddWithEventAsync(
+                It.IsAny<Incident>(),
+                It.IsAny<IncidentEvent>(),
+                It.IsAny<OutboxMessage>(),
+                It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -102,9 +122,13 @@ public class CreateIncidentCommandHandlerTests
 
         await handler.Handle(command, CancellationToken.None);
 
-        repository.Verify(r => r.AddAsync(It.Is<Incident>(i =>
-            i.SlaPolicyId == policy.Id &&
-            i.ResponseDueAt == i.CreatedAt.AddMinutes(15) &&
-            i.ResolutionDueAt == i.CreatedAt.AddMinutes(240)), It.IsAny<CancellationToken>()), Times.Once);
+        repository.Verify(r => r.AddWithEventAsync(
+            It.Is<Incident>(i =>
+                i.SlaPolicyId == policy.Id &&
+                i.ResponseDueAt == i.CreatedAt.AddMinutes(15) &&
+                i.ResolutionDueAt == i.CreatedAt.AddMinutes(240)),
+            It.IsAny<IncidentEvent>(),
+            It.IsAny<OutboxMessage>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

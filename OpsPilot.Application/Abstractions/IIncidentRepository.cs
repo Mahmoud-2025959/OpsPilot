@@ -7,6 +7,22 @@ public interface IIncidentRepository
 {
     Task<Guid> AddAsync(Incident incident, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Opens an incident and appends its first timeline entry, announcing that entry, in one
+    /// save.
+    /// </summary>
+    /// <remarks>
+    /// A manually created incident needs the same opening entry ingestion writes: without it
+    /// the timeline starts empty and nothing announces the incident to the broker or to
+    /// registered webhooks. The three rows commit together so an announcement can never point
+    /// at an incident or entry that was not stored.
+    /// </remarks>
+    Task<Guid> AddWithEventAsync(
+        Incident incident,
+        IncidentEvent firstEvent,
+        OutboxMessage integrationMessage,
+        CancellationToken cancellationToken = default);
+
     Task<Incident?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(Incident incident, CancellationToken cancellationToken = default);
@@ -27,6 +43,15 @@ public interface IIncidentRepository
         CancellationToken cancellationToken = default);
 
     Task AddCommentAsync(IncidentComment comment, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores a comment together with its timeline entry and the announcement of that entry.
+    /// </summary>
+    Task AddCommentAsync(
+        IncidentComment comment,
+        IncidentEvent incidentEvent,
+        OutboxMessage integrationMessage,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<IncidentComment>> GetCommentsAsync(Guid incidentId, CancellationToken cancellationToken = default);
 

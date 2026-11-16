@@ -1,6 +1,8 @@
 using MediatR;
 using OpsPilot.Application.Abstractions;
+using OpsPilot.Application.Common.Messages;
 using OpsPilot.Domain.Entities;
+using OpsPilot.Domain.Enums;
 using OpsPilot.Domain.Exceptions;
 
 namespace OpsPilot.Application.Features.Incidents.Commands;
@@ -32,6 +34,8 @@ public sealed class CreateIncidentCommandHandler : IRequestHandler<CreateInciden
             throw new EntityNotFoundException(nameof(Service), request.ServiceId);
         }
 
+        var now = DateTimeOffset.UtcNow;
+
         var incident = Incident.Create(
             request.TenantId,
             request.ServiceId,
@@ -39,7 +43,7 @@ public sealed class CreateIncidentCommandHandler : IRequestHandler<CreateInciden
             request.Description,
             request.Severity,
             request.CreatedBy,
-            DateTimeOffset.UtcNow,
+            now,
             request.CorrelationKey);
 
         // The deadlines are measured from the moment the incident was opened, so the policy for
@@ -55,6 +59,20 @@ public sealed class CreateIncidentCommandHandler : IRequestHandler<CreateInciden
                 TimeSpan.FromMinutes(policy.ResolutionMinutes));
         }
 
-        return await _repository.AddAsync(incident, cancellationToken);
+        // The manual path opens the timeline the same way ingestion does: the incident's first
+        // entry is the act of creating it, and announcing that entry is what tells the broker
+        // and the webhooks the incident exists.
+        var first = IncidentEvent.Create(
+            incident.TenantId,
+            incident.Id,
+            IncidentEventType.Created,
+            occurredAt: now,
+            payload: request.CreatedBy.ToString());
+
+        return await _repository.AddWithEventAsync(
+            incident,
+            first,
+            IncidentAnnouncements.Created(first, incident),
+            cancellationToken);
     }
 }

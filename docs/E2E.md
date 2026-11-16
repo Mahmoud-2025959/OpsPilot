@@ -71,10 +71,12 @@ smtp4dev 3.16.1 on SMTP 2525 / UI 5001.
 | Email delivered | three `Notifications` rows `Sent` with `SentAt`; `GET http://localhost:5001/api/messages` returns three messages |
 | SLA sweep | incident left open past `ResponseDueAt` → `SlaViolations` row `Response`, timeline `SlaViolationDetected`, and `InApp` + `Email` `SlaViolation`/`SlaViolationEscalated` notifications `Sent` |
 
-Note: creating an incident through `POST /api/v1/incidents` records timeline events but does not
-stage outbox/webhook rows — only the ingestion path (`POST /api/v1/events`) does. The webhook
-delivery above therefore came from the ingested event, which is the documented current
-behaviour.
+Note: every path that changes an incident stages its announcement. Creating an incident through
+`POST /api/v1/incidents` writes a `Created` timeline entry and an `IncidentCreated` outbox row,
+and leaves one `WebhookDeliveries` row per active endpoint; status transitions, comments and
+assignments (only when the assignee actually changes) announce `IncidentEventAdded`. The webhook
+delivery above came from the ingested event, which is the same message a manually created
+incident now produces.
 
 ## Evidence
 

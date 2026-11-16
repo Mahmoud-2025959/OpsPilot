@@ -27,6 +27,19 @@ Contains DTOs and messaging contracts shared across layers so API / Application 
 | `DTOs / Responses` | الـ payloads اللي بترجع (نتائج الـ API) |
 | Messaging contracts | أنواع أحداث التكامل اللي بتتبعت على الـ Outbox (وRabbitMQ لما يكون مفعّلًا) |
 
+### أحداث الحوادث على الـ Outbox
+
+كل مسار بيغيّر حادثة بيـ stage رسالة تكامل في نفس الـ transaction: الإنشاء اليدوي والـ ingestion
+بيصدروا `IncidentCreated`، والتحولات والتعليقات والإسناد (لما المُسند يتغيّر فعليًا) بيصدروا
+`IncidentEventAdded`. الـ payload:
+
+```json
+{ "eventId": "…", "incidentId": "…", "eventType": "Acknowledged" }
+```
+
+`eventType` هو اسم قيمة `IncidentEventType`، وبيخلي الـ consumer يعرف نوع الحدث من غير ما
+يقرأ الـ timeline. نفس الرسالة بتتحوّل لـ webhook لكل endpoint نشط للشركة.
+
 ## ملاحظات إضافية / Additional Notes
 
 - مساحة الأسماء: `OpsPilot.Contracts`

@@ -24,6 +24,24 @@ public sealed class IncidentRepository : IIncidentRepository
         return incident.Id;
     }
 
+    public async Task<Guid> AddWithEventAsync(
+        Incident incident,
+        IncidentEvent firstEvent,
+        OutboxMessage integrationMessage,
+        CancellationToken cancellationToken = default)
+    {
+        // Opening the incident, its first timeline entry and the message announcing it are one
+        // fact: the save either stores all three or none of them.
+        _context.Incidents.Add(incident);
+        _context.IncidentEvents.Add(firstEvent);
+        _context.OutboxMessages.Add(integrationMessage);
+
+        await StageWebhookDeliveriesAsync(firstEvent, integrationMessage, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return incident.Id;
+    }
+
     public async Task<Incident?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _context.Incidents.SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
@@ -102,6 +120,21 @@ public sealed class IncidentRepository : IIncidentRepository
     public async Task AddCommentAsync(IncidentComment comment, CancellationToken cancellationToken = default)
     {
         _context.IncidentComments.Add(comment);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddCommentAsync(
+        IncidentComment comment,
+        IncidentEvent incidentEvent,
+        OutboxMessage integrationMessage,
+        CancellationToken cancellationToken = default)
+    {
+        // The comment, the timeline entry that records it and the announcement are one fact.
+        _context.IncidentComments.Add(comment);
+        _context.IncidentEvents.Add(incidentEvent);
+        _context.OutboxMessages.Add(integrationMessage);
+
+        await StageWebhookDeliveriesAsync(incidentEvent, integrationMessage, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
 
